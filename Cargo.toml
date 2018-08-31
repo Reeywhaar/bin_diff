@@ -1,0 +1,8 @@
+[package]
+name = "bin_diff"
+version = "0.1.0"
+authors = ["Vyrtsev Mikhail <reeywhaar@gmail.com>"]
+
+[dependencies]
+sha2 = "0.7.1"
+difference = "2.0"
