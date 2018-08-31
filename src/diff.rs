@@ -1,11 +1,12 @@
 use bytes_serializer::IntoBytesSerializer;
 use diffblock::{DiffBlock, DiffBlockN};
 use difference::{Changeset, Difference};
+use drain::Drainable;
 use functions::{compute_hash, vec_to_u32_be};
 use indexes::{Indexes, WithIndexes};
-use std::io::{
-	copy, sink, BufWriter, Error, ErrorKind, Read, Result as IOResult, SeekFrom, Take, Write,
-};
+use readslice::ReadSlice;
+use std::fmt::Debug;
+use std::io::{copy, BufWriter, Error, ErrorKind, Read, Result as IOResult, Seek, SeekFrom, Write};
 
 pub struct LinesWithHashIterator<T: WithIndexes> {
 	file: T,
@@ -184,7 +185,7 @@ impl<T: WithIndexes> DiffIterator<T> {
 		return o;
 	}
 
-	pub fn next_ref<'a>(&mut self) -> Option<Result<DiffBlock<u32, Take<&mut T>>, String>> {
+	pub fn next_ref(&mut self) -> Option<Result<DiffBlock<u32>, String>> {
 		if self.pos >= self.diff.len() {
 			return None;
 		};
@@ -202,12 +203,10 @@ impl<T: WithIndexes> DiffIterator<T> {
 				if res.is_err() {
 					return Some(Err("Error while seeking file".to_string()));
 				};
-				let slice = self.file.by_ref().take(*size as u64);
+				let slice: ReadSlice =
+					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *size as u64);
 				self.file_pos += *size as u64;
-				return Some(Ok(DiffBlock::Add {
-					size: *size as u32,
-					data: slice,
-				}));
+				return Some(Ok(DiffBlock::Add { data: slice }));
 			}
 			DiffBlockN::Remove(size) => {
 				return Some(Ok(DiffBlock::Remove { size: *size }));
@@ -217,11 +216,11 @@ impl<T: WithIndexes> DiffIterator<T> {
 				if res.is_err() {
 					return Some(Err("Error while seeking file".to_string()));
 				};
-				let slice = self.file.by_ref().take(*add as u64);
+				let slice =
+					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *add as u64);
 				self.file_pos += *add as u64;
 				return Some(Ok(DiffBlock::Replace {
-					replace_size: *remove,
-					size: *add,
+					remove_size: *remove,
 					data: slice,
 				}));
 			}
@@ -230,12 +229,10 @@ impl<T: WithIndexes> DiffIterator<T> {
 				if res.is_err() {
 					return Some(Err("Error while seeking file".to_string()));
 				};
-				let slice = self.file.by_ref().take(*size as u64);
+				let slice =
+					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *size as u64);
 				self.file_pos += *size as u64;
-				return Some(Ok(DiffBlock::ReplaceWithSameLength {
-					size: *size,
-					data: slice,
-				}));
+				return Some(Ok(DiffBlock::ReplaceWithSameLength { data: slice }));
 			}
 		}
 	}
@@ -309,6 +306,25 @@ pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 	Ok(())
 }
 
+fn read_n<T: Read>(mut input: &mut T, buf: &mut [u8], size: u32) -> IOResult<usize> {
+	let mut taken = (&mut input).take(size as u64);
+	let mut read: usize = 0;
+	let mut attempts = 0;
+	while read < size as usize {
+		let r = taken.read(&mut buf[read..])?;
+		read += r;
+		if r == 0 {
+			attempts += 1;
+			if attempts >= 10 {
+				return Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"));
+			}
+		} else {
+			attempts = 0;
+		}
+	}
+	Ok(read)
+}
+
 pub fn apply_diff<T: Read, U: Read, W: Write>(
 	mut file: &mut T,
 	mut diff: &mut U,
@@ -316,33 +332,9 @@ pub fn apply_diff<T: Read, U: Read, W: Write>(
 ) -> IOResult<()> {
 	let mut buf = vec![0; 1024 * 64];
 	let mut output = BufWriter::with_capacity(8, &mut output);
-	let mut sink = sink();
-	let mut drain = |mut input: &mut T, size: u32| -> IOResult<()> {
-		let mut r = (&mut input).take(size as u64);
-		while copy(&mut r, &mut sink)? != 0 {}
-		return Ok(());
-	};
-	let read = |mut input: &mut U, buf: &mut [u8], size: u32| -> IOResult<usize> {
-		let mut taken = (&mut input).take(size as u64);
-		let mut read: usize = 0;
-		let mut attempts = 0;
-		while read < size as usize {
-			let r = taken.read(&mut buf[read..])?;
-			read += r;
-			if r == 0 {
-				attempts += 1;
-				if attempts >= 10 {
-					return Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"));
-				}
-			} else {
-				attempts = 0;
-			}
-		}
-		Ok(read)
-	};
 
 	loop {
-		let res = read(&mut diff, &mut buf, 2);
+		let res = read_n(&mut diff, &mut buf, 2);
 
 		if res.is_err() {
 			break;
@@ -351,35 +343,35 @@ pub fn apply_diff<T: Read, U: Read, W: Write>(
 		let slice: &[u8] = &buf[0..2].to_vec();
 		match slice.as_ref() {
 			[0x00, 0x00] => {
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let len = vec_to_u32_be(&buf[0..4]);
 				let mut r = (&mut file).take(len as u64);
 				copy(&mut r, &mut output)?;
 			}
 			[0x00, 0x01] => {
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let len = vec_to_u32_be(&buf[0..4]);
 				let mut r = (&mut diff).take(len as u64);
 				copy(&mut r, &mut output)?;
 			}
 			[0x00, 0x02] => {
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let len = vec_to_u32_be(&buf[0..4]);
-				drain(&mut file, len)?;
+				file.drain(len as u64).get_drained()?;
 			}
 			[0x00, 0x03] => {
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let remove = vec_to_u32_be(&buf[0..4]);
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let add = vec_to_u32_be(&buf[0..4]);
-				drain(&mut file, remove)?;
+				file.drain(remove as u64).get_drained()?;
 				let mut r = (&mut diff).take(add as u64);
 				copy(&mut r, &mut output)?;
 			}
 			[0x00, 0x04] => {
-				read(&mut diff, &mut buf, 4)?;
+				read_n(&mut diff, &mut buf, 4)?;
 				let size = vec_to_u32_be(&buf[0..4]);
-				drain(&mut file, size)?;
+				file.drain(size as u64).get_drained()?;
 				let mut r = (&mut diff).take(size as u64);
 				copy(&mut r, &mut output)?;
 			}
@@ -486,7 +478,6 @@ mod apply_diff_tests {
 
 		let mut output = Cursor::new(vec![0, 136]);
 		let res = apply_diff(&mut file, &mut diff, &mut output);
-		eprintln!("{:?}", res);
 		assert_eq!(
 			res.unwrap_err().to_string(),
 			"Unknown Action: possibly corrupted file or diff".to_string()
@@ -498,6 +489,8 @@ mod apply_diff_tests {
 		#[cfg_attr(rustfmt, rustfmt_skip)]
 		let inputs = [
 			["a_a.txt", "a_b.txt"],
+			["a_b.txt", "a_c.txt"],
+			["a_a.txt", "a_c.txt"],
 		];
 
 		for pair in inputs.iter() {
@@ -522,6 +515,220 @@ mod apply_diff_tests {
 
 				assert_eq!(hash, res_hash, "pair {:?} failed", pair);
 			}
+		}
+	}
+}
+
+fn read_block<'a, 'b: 'a>(
+	mut input: &'a mut ReadSlice<'b>,
+) -> IOResult<Option<DiffBlock<'b, u32>>> {
+	let mut buf = vec![0; 4];
+	let read_size = read_n(&mut input, &mut buf, 2);
+	match read_size {
+		Err(e) => match e.kind() {
+			ErrorKind::UnexpectedEof => {
+				return Ok(None);
+			}
+			_ => {
+				return Err(e);
+			}
+		},
+		Ok(x) => {
+			if x == 0 {
+				return Ok(None);
+			}
+		}
+	};
+	let action = vec_to_u32_be(&buf[0..2]);
+	match action {
+		0 => {
+			read_n(&mut input, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf);
+			return Ok(Some(DiffBlock::Skip { size }));
+		}
+		1 => {
+			read_n(&mut input, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf);
+			let mut data = ReadSlice::take_from_current(&mut input, size as u64);
+			ReadSlice::seek(&mut input, SeekFrom::Current(size as i64))?;
+			return Ok(Some(DiffBlock::Add { data }));
+		}
+		2 => {
+			read_n(&mut input, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf);
+			return Ok(Some(DiffBlock::Remove { size }));
+		}
+		3 => {
+			read_n(&mut input, &mut buf, 4)?;
+			let remove_size = vec_to_u32_be(&buf);
+			read_n(&mut input, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf);
+			let mut data = ReadSlice::take_from_current(&mut input, size as u64);
+			ReadSlice::seek(&mut input, SeekFrom::Current(size as i64))?;
+			return Ok(Some(DiffBlock::Replace { remove_size, data }));
+		}
+		4 => {
+			read_n(&mut input, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf);
+			let mut data = ReadSlice::take_from_current(&mut input, size as u64);
+			ReadSlice::seek(&mut input, SeekFrom::Current(size as i64))?;
+			return Ok(Some(DiffBlock::ReplaceWithSameLength { data }));
+		}
+		_ => panic!("Unknown Action"),
+	}
+}
+
+pub fn combine_diffs<
+	T: 'static + Read + Seek + Debug,
+	U: 'static + Read + Seek + Debug,
+	W: Write + Debug,
+>(
+	diff_a: T,
+	diff_b: U,
+	mut output: &mut W,
+) -> IOResult<()> {
+	let mut ia = ReadSlice::new(diff_a);
+	let mut ib = ReadSlice::new(diff_b);
+	let mut da = None;
+	let mut db = None;
+	let mut out = vec![];
+
+	loop {
+		if da.is_none() {
+			da = read_block(&mut ia)?;
+		}
+		if db.is_none() {
+			db = read_block(&mut ib)?;
+		}
+		match (da.is_none(), db.is_none()) {
+			(true, true) => break,
+			(false, true) => {
+				out.push(da.unwrap());
+				// copy(&mut da.unwrap().into_bytes(), &mut output)?;
+				da = None;
+			}
+			(true, false) => {
+				out.push(db.unwrap());
+				// copy(&mut db.unwrap().into_bytes(), &mut output)?;
+				db = None;
+			}
+			(false, false) => {
+				let (outblock, ba, bb) = da.unwrap().diff(db.unwrap());
+				if outblock.is_some() {
+					out.push(outblock.unwrap())
+					// copy(&mut out.unwrap().into_bytes(), &mut output)?;
+				}
+				da = ba;
+				db = bb;
+			}
+		};
+	}
+
+	if out.len() < 1 {
+		return Ok(());
+	}
+
+	if out.len() == 1 {
+		let block = out.remove(0);
+		copy(&mut block.into_bytes(), &mut output)?;
+		return Ok(());
+	}
+
+	let mut compressed = false;
+	let mut started = false;
+	let mut processed = vec![];
+	while !(started && compressed) {
+		started = true;
+		compressed = true;
+		let mut blocka = out.remove(0);
+		let len = out.len();
+		for i in 0..len {
+			let mut blockb = out.remove(0);
+			let op = blocka + blockb;
+			processed.push(op.0);
+			if op.1.is_some() {
+				if i != len - 1 {
+					blocka = op.1.unwrap();
+				} else {
+					processed.push(op.1.unwrap());
+					// satisfying compilator
+					blocka = DiffBlock::Skip { size: 0 };
+				}
+			} else {
+				if i != len - 1 {
+					blocka = processed.pop().unwrap();
+					compressed = false;
+				} else {
+					// satisfying compilator
+					blocka = DiffBlock::Skip { size: 0 };
+				}
+			}
+		}
+		out = processed;
+		processed = vec![];
+	}
+
+	for block in out {
+		copy(&mut block.into_bytes(), &mut output)?;
+	}
+	return Ok(());
+}
+
+#[cfg(test)]
+mod combine_diffs_tests {
+	use super::super::test_mod::TextFile;
+	use super::{apply_diff, combine_diffs, compute_hash, create_diff};
+	use std::io::{Cursor, Seek, SeekFrom};
+
+	#[test]
+	fn works_live_test() {
+		let files = [
+			[
+				"./test_data/a_b.txt",
+				"./test_data/a_c.txt",
+				"./test_data/a_a.txt",
+			],
+			[
+				"./test_data/a_a.txt",
+				"./test_data/a_b.txt",
+				"./test_data/a_c.txt",
+			],
+			[
+				"./test_data/a_c.txt",
+				"./test_data/a_a.txt",
+				"./test_data/a_b.txt",
+			],
+		];
+
+		for set in files.iter() {
+			let mut file_a = TextFile::from_path(set[0]);
+			let mut file_b = TextFile::from_path(set[1]);
+			let mut file_c = TextFile::from_path(set[2]);
+
+			let hash = compute_hash(&mut file_c);
+			file_c.seek(SeekFrom::Start(0)).unwrap();
+
+			let mut diff_a_b = Cursor::new(vec![]);
+			create_diff(&mut file_a, &mut file_b, &mut diff_a_b).unwrap();
+
+			file_b.seek(SeekFrom::Start(0)).unwrap();
+			let mut diff_b_c = Cursor::new(vec![]);
+			create_diff(&mut file_b, &mut file_c, &mut diff_b_c).unwrap();
+
+			diff_a_b.seek(SeekFrom::Start(0)).unwrap();
+			diff_b_c.seek(SeekFrom::Start(0)).unwrap();
+			let mut diff_a_b_c = Cursor::new(vec![]);
+			combine_diffs(diff_a_b, diff_b_c, &mut diff_a_b_c).unwrap();
+
+			file_a.seek(SeekFrom::Start(0)).unwrap();
+			diff_a_b_c.seek(SeekFrom::Start(0)).unwrap();
+			let mut restored = Cursor::new(vec![]);
+			apply_diff(&mut file_a, &mut diff_a_b_c, &mut restored).unwrap();
+			restored.seek(SeekFrom::Start(0)).unwrap();
+
+			let rhash = compute_hash(&mut restored);
+
+			assert_eq!(hash, rhash);
 		}
 	}
 }

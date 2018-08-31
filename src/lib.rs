@@ -5,7 +5,11 @@ extern crate sha2;
 mod test_mod;
 
 pub mod bytes_serializer;
+mod cmp;
 pub mod diff;
 pub mod diffblock;
+pub mod drain;
 pub mod functions;
 pub mod indexes;
+pub mod readseek;
+pub mod readslice;

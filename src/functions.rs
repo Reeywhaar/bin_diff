@@ -122,14 +122,12 @@ mod functions_tests {
 	#[test]
 	fn u16_to_u8_be_vec_test() {
 		let b = u16_to_u8_be_vec(&10u16);
-		eprintln!("{:?}", b);
 		assert_eq!(b, [0x00, 10]);
 	}
 
 	#[test]
 	fn u32_to_u8_be_vec_test() {
 		let b = u32_to_u8_be_vec(&10u32);
-		eprintln!("{:?}", b);
 		assert_eq!(b, [0x00, 0x00, 0x00, 10]);
 	}
 
