@@ -128,7 +128,7 @@ pub trait WithIndexes: Read + Seek {
 
 impl<'a, T: WithIndexes> WithIndexes for &'a mut T {
 	fn get_indexes(&mut self) -> Result<Indexes, String> {
-		return WithIndexes::get_indexes(*self);
+		return (**self).get_indexes();
 	}
 }
 
