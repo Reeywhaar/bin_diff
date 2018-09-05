@@ -220,6 +220,7 @@ impl<'a> ReadSlice<'a> {
 		return clone;
 	}
 
+	#[allow(dead_code)]
 	pub fn rewind(&mut self) -> &mut Self {
 		self.seek(SeekFrom::Start(0)).unwrap();
 		return self;

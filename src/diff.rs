@@ -1,3 +1,5 @@
+//! Functions for creating, applying and combining diffs
+
 use bytes_serializer::IntoBytesSerializer;
 use diff_block::DiffBlock;
 use diff_iterator::DiffIterator;
@@ -8,6 +10,7 @@ use indexes::WithIndexes;
 use readslice::ReadSlice;
 use std::io::{copy, BufWriter, Error, ErrorKind, Read, Result as IOResult, Seek, Write};
 
+/// Creates and writes diff of two `WithIndexes` Implementations
 pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 	original: &mut T,
 	edited: &mut U,
@@ -37,6 +40,7 @@ pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 	Ok(())
 }
 
+/// Takes file and applies binary diff
 pub fn apply_diff<T: Read, U: Read, W: Write>(
 	mut file: &mut T,
 	mut diff: &mut U,
@@ -313,6 +317,7 @@ fn combine_diffs_to_vec<'a, 'b: 'a>(
 	return Ok(out);
 }
 
+/// Combines two binary diffs into one
 pub fn combine_diffs<'a, T: 'a + Read + Seek, U: 'a + Read + Seek, W: Write>(
 	blocksa: T,
 	blocksb: U,
@@ -391,7 +396,7 @@ mod combine_diffs_tests {
 	}
 }
 
-pub fn combine_diffs_vec_to_vec<'a, T: 'a + Read + Seek>(
+fn combine_diffs_vec_to_vec<'a, T: 'a + Read + Seek>(
 	mut diffs: &mut Vec<T>,
 ) -> IOResult<Vec<DiffBlock<'a, u32>>> {
 	if diffs.len() < 2 {
@@ -423,6 +428,7 @@ pub fn combine_diffs_vec_to_vec<'a, T: 'a + Read + Seek>(
 	Ok(out)
 }
 
+/// Combines multiple binary diffs into one
 pub fn combine_diffs_vec<'a, T: 'a + Read + Seek, W: Write>(
 	mut diffs: &mut Vec<T>,
 	mut output: &mut W,

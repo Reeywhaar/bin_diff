@@ -1,6 +1,34 @@
+//! Module with `Indexes` struct and `WithIndexes` trait
+
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 
+/// Indexes struct
+///
+/// Indexes represent binary file blocks (lines) and have similar to `HashMap` idea.
+/// You have string `label`s followed by `start` of the block and `size` of the block.
+///
+/// Example text representation of `Indexes` can be as follows:
+/// ```
+/// header 0 16
+/// data_length 16 2
+/// data_item_1 18 16
+/// data_item_2 34 16
+/// misc_info_length 50 2
+/// misc_info 52 8
+/// ```
+///
+/// Text file representation, for example, is as simple as:
+/// ```
+/// line_1 0 10
+/// line_2 10 10
+/// line_3 20 5
+/// line_4 25 10
+/// ```
+///
+/// Diff algorithm uses this blocks to compute hashes and compare them one by one
+///
+/// Indexes implementation varies from format to format and is supposed to be implemented manually for each format
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Indexes {
 	order: Box<Vec<(String, u64, u64)>>,
@@ -8,6 +36,7 @@ pub struct Indexes {
 }
 
 impl Indexes {
+	/// Creates new `Indexes` instance
 	pub fn new() -> Self {
 		return Self {
 			order: Box::new(vec![]),
@@ -15,6 +44,7 @@ impl Indexes {
 		};
 	}
 
+	/// Inserts item to `Indexes`
 	pub fn insert(&mut self, label: String, start: u64, size: u64) {
 		if self.has(&label) {
 			panic!("Attempt to put a dublicate");
@@ -22,6 +52,7 @@ impl Indexes {
 		self.order.push((label.clone(), start, size));
 	}
 
+	/// Chech if `Indexes` has label
 	pub fn has(&self, label: &str) -> bool {
 		return self
 			.order
@@ -31,6 +62,7 @@ impl Indexes {
 			.is_some();
 	}
 
+	/// Returns `Indexes` item
 	pub fn get(&self, label: &str) -> Option<(u64, u64)> {
 		return self
 			.order
@@ -40,6 +72,7 @@ impl Indexes {
 			.map(|(_, start, size)| (*start, *size));
 	}
 
+	/// Removes item from `Indexes` by label
 	pub fn remove(&mut self, label: &str) -> bool {
 		let index = self.order.iter().by_ref().position(|(l, _, _)| l == &label);
 		if index.is_none() {
@@ -53,7 +86,29 @@ impl Indexes {
 		return true;
 	}
 
-	pub fn get_ends(&mut self) -> Indexes {
+	/// Returns only ends of the `Indexes`
+	///
+	/// In compare with file system this function will return only files while omitting directories.
+	/// Imagine we have `Indexes` like this
+	/// ```
+	/// header: 0 16
+	/// header/signature 0 4
+	/// header/version 4 4
+	/// header/additinal_info 8 8
+	/// data_section: 16 32
+	/// data_section/item_1 16 16
+	/// data_section/item_2 32 16
+	/// ```
+	///
+	/// The given function will return ends as so
+	/// ```
+	/// header/signature 0 4
+	/// header/version 4 4
+	/// header/additinal_info 8 8
+	/// data_section/item_1 16 16
+	/// data_section/item_2 32 16
+	/// ```
+	pub fn get_ends(&mut self) -> Self {
 		let mut out = Indexes::new();
 		let mut set = vec![];
 		{
@@ -122,6 +177,7 @@ impl DoubleEndedIterator for Indexes {
 	}
 }
 
+/// Trait implies that structure that implements it can be diffed
 pub trait WithIndexes: Read + Seek {
 	fn get_indexes(&mut self) -> Result<Indexes, String>;
 }
