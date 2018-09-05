@@ -1,6 +1,5 @@
 use bytes_serializer::{BytesSerializer, IntoBytesSerializer};
 use cmp::Cmp;
-use drain::Drainable;
 use functions::{u16_to_u8_be_vec, u32_to_u8_be_vec};
 use readslice::ReadSlice;
 use std::io::{Cursor, Read};
@@ -246,7 +245,6 @@ impl<'a> DiffBlock<'a, u32> {
 							);
 						}
 						Cmp::Less => {
-							data.drain(x as u64).get_drained().unwrap();
 							return (None, None, Some(DiffBlock::Remove { size: y - x }));
 						}
 					}
@@ -281,7 +279,6 @@ impl<'a> DiffBlock<'a, u32> {
 							);
 						}
 						Cmp::Less => {
-							data.drain(x as u64).get_drained().unwrap();
 							return (
 								None,
 								None,
@@ -321,7 +318,6 @@ impl<'a> DiffBlock<'a, u32> {
 							);
 						}
 						Cmp::Less => {
-							data.drain(x as u64).get_drained().unwrap();
 							return (
 								None,
 								None,
@@ -640,8 +636,8 @@ impl<'a> IntoBytesSerializer for DiffBlock<'a, u32> {
 
 #[cfg(test)]
 mod diff_block_tests {
-	use super::super::bytes_serializer::IntoBytesSerializer;
 	use super::DiffBlock;
+	use bytes_serializer::IntoBytesSerializer;
 	use readslice::ReadSlice;
 	use std::io::{copy, Cursor, Read};
 
