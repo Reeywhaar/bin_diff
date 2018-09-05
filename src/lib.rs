@@ -135,6 +135,6 @@ mod diff_reader;
 mod drain;
 pub mod functions;
 pub mod indexes;
-mod lines_with_hash_iterator;
+pub mod lines_with_hash_iterator;
 mod readseek;
 mod readslice;
