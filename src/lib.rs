@@ -4,12 +4,15 @@ extern crate sha2;
 #[cfg(test)]
 mod test_mod;
 
-pub mod bytes_serializer;
+mod bytes_serializer;
 mod cmp;
 pub mod diff;
-pub mod diffblock;
-pub mod drain;
+mod diff_block;
+mod diff_iterator;
+mod diff_reader;
+mod drain;
 pub mod functions;
 pub mod indexes;
-pub mod readseek;
-pub mod readslice;
+mod lines_with_hash_iterator;
+mod readseek;
+mod readslice;

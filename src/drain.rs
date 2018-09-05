@@ -16,14 +16,17 @@ impl<T: Read> Drain<T> {
 		};
 	}
 
+	#[allow(dead_code)]
 	pub fn into_inner(self) -> T {
 		return self.inner;
 	}
 
+	#[allow(dead_code)]
 	pub fn get_ref(&self) -> &T {
 		return &self.inner;
 	}
 
+	#[allow(dead_code)]
 	pub fn get_mut(&mut self) -> &mut T {
 		return &mut self.inner;
 	}
@@ -72,7 +75,7 @@ impl<T: Read> Drainable for T {
 
 #[cfg(test)]
 mod drain_tests {
-	use super::*;
+	use super::Drainable;
 	use std::io::{Cursor, Read};
 
 	#[test]
