@@ -10,4 +10,10 @@ Add to your `Cargo.toml` dependencies following line:
 bin_diff = { git = "https://github.com/Reeywhaar/bin_diff" }}
 ```
 
-Documentation available with `cargo doc --no-deps open` command
+Documentation available with `cargo doc --no-deps --open` command
+
+## Binary diff format
+Binary diff format specification available [here](./diff_spec.md)
+
+## Diff operations theory
+Diff operations theory available [here](./diff_operations.md)

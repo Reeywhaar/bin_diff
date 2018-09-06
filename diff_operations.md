@@ -1,3 +1,11 @@
+# Diff operations theory
+
+This theory was used in implementation of diff combine functions.
+
+The purpose of combined diff is an ability to rebuild target file with multiple diffs with no intermediate temp output.
+
+### Summing Diffs
+
 ```
 skip(x) + skip(y)       = skip(x + y)
 skip(x) + add(y)        = skip(x) add(y)
@@ -18,38 +26,42 @@ replace(x, y) + skip(z)       = replace(x, y) skip(z)
 replace(x, y) + add(z)        = replace(x, y + z)
 replace(x, y) + remove(z)     = replace(x, y) remove(z)
 replace(x, y) + replace(z, w) = replace(x, y) replace(z, w)
+```
+
+### Combining Diffs
 
 "|" symbol means transitive diff
 
+```
 skip(x) | skip(y) =
-	= skip(x)
-	> skip(y) next(skip(x - y))
-	< skip(x) next(nil, skip(y - x))
+	x = y: skip(x)
+	x > y: skip(y) next(skip(x - y))
+	x < y: skip(x) next(nil, skip(y - x))
 
 skip(x) | add(y) =
-	= add(y) next(skip(x))
+	x = y: add(y) next(skip(x))
 
 skip(x) | remove(y) =
-	= remove(x)
-	> remove(y) next(skip(x - y))
-	< remove(x) next(nil , remove(y - x))
+	x = y: remove(x)
+	x > y: remove(y) next(skip(x - y))
+	x < y: remove(x) next(nil , remove(y - x))
 
 skip(x) | replace(y, z) =
-	x == y : remove(x) next(nil, add(z))
-	x > y  : remove(y) next(skip(x - y), add(z))
-	x < y  : remove(x) next(nil, replace(y - x, z))
+	x = y : remove(x) next(nil, add(z))
+	x > y : remove(y) next(skip(x - y), add(z))
+	x < y : remove(x) next(nil, replace(y - x, z))
 
 add(x) | skip(y) =
-	= add(x)
-	> add(y) next(add(y..x))
-	< add(x) next(nil , skip(y - x))
+	x = y: add(x)
+	x > y: add(y) next(add(y..x))
+	x < y: add(x) next(nil , skip(y - x))
 
 add(x) | add (y) = add(y) next(add(x))
 
 add(x) | remove(y) =
-	= nil
-	> next(add(y..x))
-	< next(nil, remove(y - x))
+	x = y: nil
+	x > y: next(add(y..x))
+	x < y: next(nil, remove(y - x))
 
 add(x) | replace(y, z) =
 	x = y : next(nil, add(z))

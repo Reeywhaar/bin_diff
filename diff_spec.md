@@ -1,3 +1,10 @@
+# Binary diff format specification
+
+Binary diff consists of blocks followed each by another. Each block have 2 byte `action` and variable data. Format is BigEndian.
+
+Binary diff is a metaformat and is not intended for bare use, therefore its binary representation doesn't contain any headers, signatures. Also package doens't contain any executables.
+The reason for this format is to create with it subformats for each specific binary format specifications such as psd (my main reason), doc, zip, etc..
+
 ```
 block_{n} : {...}
 action: 2 // BE u16
