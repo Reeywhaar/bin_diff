@@ -9,7 +9,7 @@ use std::path::PathBuf;
 /// You have string `label`s followed by `start` of the block and `size` of the block.
 ///
 /// Example text representation of `Indexes` can be as follows:
-/// ```
+/// ```bash
 /// header 0 16
 /// data_length 16 2
 /// data_item_1 18 16
@@ -19,7 +19,7 @@ use std::path::PathBuf;
 /// ```
 ///
 /// Text file representation, for example, is as simple as:
-/// ```
+/// ```bash
 /// line_1 0 10
 /// line_2 10 10
 /// line_3 20 5
@@ -90,7 +90,7 @@ impl Indexes {
 	///
 	/// In compare with file system this function will return only files while omitting directories.
 	/// Imagine we have `Indexes` like this
-	/// ```
+	/// ```bash
 	/// header: 0 16
 	/// header/signature 0 4
 	/// header/version 4 4
@@ -101,7 +101,7 @@ impl Indexes {
 	/// ```
 	///
 	/// The given function will return ends as so
-	/// ```
+	/// ```bash
 	/// header/signature 0 4
 	/// header/version 4 4
 	/// header/additinal_info 8 8

@@ -1,10 +1,10 @@
+//! Contains `LinesWithHashIterator`
+
 use functions::compute_hash;
 use indexes::{Indexes, WithIndexes};
 use std::io::{Read, SeekFrom};
 
-/// LinesWithHashIterator
-/// creates hashes out of binary lines
-///
+/// Yields indexes with appended hashes
 pub struct LinesWithHashIterator<T: WithIndexes> {
 	file: T,
 	indexes: Box<Indexes>,

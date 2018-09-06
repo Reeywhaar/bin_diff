@@ -428,15 +428,29 @@ fn combine_diffs_vec_to_vec<'a, T: 'a + Read + Seek>(
 	Ok(out)
 }
 
+/// Combines diffs into vector of Read objects
+///
+/// The reason to have this function is an ability to pass vector of lightweit read objects (instead of binary data)
+pub fn combine_diffs_vec_to_read_vec<'a, 'b: 'a, T: 'b + Read + Seek>(
+	diffs: &'a mut Vec<T>,
+) -> IOResult<Vec<impl Read + 'b>> {
+	let mut blocks = combine_diffs_vec_to_vec(diffs)?;
+	let mut reads = vec![];
+	while let Some(item) = vec_shift(&mut blocks) {
+		reads.push(item.into_bytes());
+	}
+	Ok(reads)
+}
+
 /// Combines multiple binary diffs into one
 pub fn combine_diffs_vec<'a, T: 'a + Read + Seek, W: Write>(
 	mut diffs: &mut Vec<T>,
 	mut output: &mut W,
 ) -> IOResult<()> {
-	let blocks = combine_diffs_vec_to_vec(&mut diffs)?;
+	let mut blocks = combine_diffs_vec_to_read_vec(&mut diffs)?;
 
-	for block in blocks {
-		copy(&mut block.into_bytes(), &mut output)?;
+	for block in blocks.iter_mut() {
+		copy(block, &mut output)?;
 	}
 
 	Ok(())

@@ -43,7 +43,7 @@
 //! The purpose of combined diff is an ability to rebuild target file with multiple diffs with no intermediate temp output.
 //!
 //! ### Summing Diffs
-//! ```
+//! ```bash
 //! skip(x) + skip(y)       = skip(x + y)
 //! skip(x) + add(y)        = skip(x) add(y)
 //! skip(x) + remove(y)     = skip(x) remove(y)
@@ -67,7 +67,8 @@
 //!
 //! ### Combining Diffs
 //! "|" symbol means transitive diff
-//! ```
+//!
+//! ```bash
 //! skip(x) | skip(y) =
 //! 	x = y: skip(x)
 //! 	x > y: skip(y) next(skip(x - y))
