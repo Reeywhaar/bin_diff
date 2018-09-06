@@ -40,65 +40,82 @@ pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 	Ok(())
 }
 
+/// Takes file, applies diffblock and writes to output
+///
+/// Notice, that result of this function is not finalized diff, but output with only one operation applied.
+/// For the whole diff use `apply_diff`
+pub fn apply_diffblock<T: Read, U: Read, W: Write>(
+	mut file: &mut T,
+	block: &mut U,
+	mut output: &mut W,
+) -> IOResult<()> {
+	let mut buf = vec![0; 4];
+
+	read_n(block, &mut buf, 2)?;
+	let action: &[u8] = &buf[0..2].to_vec();
+	match action.as_ref() {
+		[0x00, 0x00] => {
+			read_n(block, &mut buf, 4)?;
+			let len = vec_to_u32_be(&buf[0..4]);
+			let mut r = (&mut file).take(len as u64);
+			copy(&mut r, &mut output)?;
+		}
+		[0x00, 0x01] => {
+			read_n(block, &mut buf, 4)?;
+			let len = vec_to_u32_be(&buf[0..4]);
+			let mut r = block.take(len as u64);
+			copy(&mut r, &mut output)?;
+		}
+		[0x00, 0x02] => {
+			read_n(block, &mut buf, 4)?;
+			let len = vec_to_u32_be(&buf[0..4]);
+			file.drain(len as u64).get_drained()?;
+		}
+		[0x00, 0x03] => {
+			read_n(block, &mut buf, 4)?;
+			let remove = vec_to_u32_be(&buf[0..4]);
+			read_n(block, &mut buf, 4)?;
+			let add = vec_to_u32_be(&buf[0..4]);
+			file.drain(remove as u64).get_drained()?;
+			let mut r = block.take(add as u64);
+			copy(&mut r, &mut output)?;
+		}
+		[0x00, 0x04] => {
+			read_n(block, &mut buf, 4)?;
+			let size = vec_to_u32_be(&buf[0..4]);
+			file.drain(size as u64).get_drained()?;
+			let mut r = block.take(size as u64);
+			copy(&mut r, &mut output)?;
+		}
+		_ => {
+			return Err(Error::new(
+				ErrorKind::Other,
+				"Unknown Action: possibly corrupted file or diff",
+			));
+		}
+	};
+
+	Ok(())
+}
+
 /// Takes file and applies binary diff
 pub fn apply_diff<T: Read, U: Read, W: Write>(
 	mut file: &mut T,
 	mut diff: &mut U,
 	mut output: &mut W,
 ) -> IOResult<()> {
-	let mut buf = vec![0; 1024 * 64];
-	let mut output = BufWriter::with_capacity(8, &mut output);
+	let mut output = BufWriter::with_capacity(1024 * 64, &mut output);
 
 	loop {
-		let res = read_n(&mut diff, &mut buf, 2);
-
-		if res.is_err() {
-			break;
-		}
-
-		let slice: &[u8] = &buf[0..2].to_vec();
-		match slice.as_ref() {
-			[0x00, 0x00] => {
-				read_n(&mut diff, &mut buf, 4)?;
-				let len = vec_to_u32_be(&buf[0..4]);
-				let mut r = (&mut file).take(len as u64);
-				copy(&mut r, &mut output)?;
-			}
-			[0x00, 0x01] => {
-				read_n(&mut diff, &mut buf, 4)?;
-				let len = vec_to_u32_be(&buf[0..4]);
-				let mut r = (&mut diff).take(len as u64);
-				copy(&mut r, &mut output)?;
-			}
-			[0x00, 0x02] => {
-				read_n(&mut diff, &mut buf, 4)?;
-				let len = vec_to_u32_be(&buf[0..4]);
-				file.drain(len as u64).get_drained()?;
-			}
-			[0x00, 0x03] => {
-				read_n(&mut diff, &mut buf, 4)?;
-				let remove = vec_to_u32_be(&buf[0..4]);
-				read_n(&mut diff, &mut buf, 4)?;
-				let add = vec_to_u32_be(&buf[0..4]);
-				file.drain(remove as u64).get_drained()?;
-				let mut r = (&mut diff).take(add as u64);
-				copy(&mut r, &mut output)?;
-			}
-			[0x00, 0x04] => {
-				read_n(&mut diff, &mut buf, 4)?;
-				let size = vec_to_u32_be(&buf[0..4]);
-				file.drain(size as u64).get_drained()?;
-				let mut r = (&mut diff).take(size as u64);
-				copy(&mut r, &mut output)?;
-			}
-			_ => {
-				return Err(Error::new(
-					ErrorKind::Other,
-					"Unknown Action: possibly corrupted file or diff",
-				));
-			}
+		let res = apply_diffblock(&mut file, &mut diff, &mut output);
+		if let Err(err) = res {
+			match err.kind() {
+				ErrorKind::UnexpectedEof => break,
+				_ => return Err(err),
+			};
 		}
 	}
+
 	return output.flush();
 }
 
@@ -428,10 +445,10 @@ fn combine_diffs_vec_to_vec<'a, T: 'a + Read + Seek>(
 	Ok(out)
 }
 
-/// Combines diffs into vector of Read objects
+/// Combines diffs into vector of Readable diffblocks
 ///
 /// The reason to have this function is an ability to pass vector of lightweit read objects (instead of binary data)
-pub fn combine_diffs_vec_to_read_vec<'a, 'b: 'a, T: 'b + Read + Seek>(
+pub fn combine_diffs_vec_to_diffblocks<'a, 'b: 'a, T: 'b + Read + Seek>(
 	diffs: &'a mut Vec<T>,
 ) -> IOResult<Vec<impl Read + 'b>> {
 	let mut blocks = combine_diffs_vec_to_vec(diffs)?;
@@ -447,7 +464,7 @@ pub fn combine_diffs_vec<'a, T: 'a + Read + Seek, W: Write>(
 	mut diffs: &mut Vec<T>,
 	mut output: &mut W,
 ) -> IOResult<()> {
-	let mut blocks = combine_diffs_vec_to_read_vec(&mut diffs)?;
+	let mut blocks = combine_diffs_vec_to_diffblocks(&mut diffs)?;
 
 	for block in blocks.iter_mut() {
 		copy(block, &mut output)?;
