@@ -23,21 +23,46 @@ pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 
 	let mut stdo = BufWriter::with_capacity(1024 * 64, output);
 
-	let mut buf = vec![0u8; 1024 * 64];
 	while let Some(block) = dit.next_ref() {
 		let mut block = block
 			.or(Err(Error::new(ErrorKind::Other, "Cannot get diff block")))
 			.map(|x| x.into_bytes())?;
-		loop {
-			let x = block.read(&mut buf)?;
-			if x == 0 {
-				break;
-			}
-			stdo.write(&buf[0..x])?;
-		}
+		copy(&mut block, &mut stdo)?;
 	}
 	stdo.flush()?;
 	Ok(())
+}
+
+/// Returns size in bytes of prospective diff
+pub fn measure_diff_size<T: WithIndexes, U: WithIndexes>(
+	original: &mut T,
+	edited: &mut U,
+) -> IOResult<u64> {
+	let mut size = 0u64;
+	let mut dit = DiffIterator::new(original, edited).or(Err(Error::new(
+		ErrorKind::Other,
+		"Error while creating DiffIterator",
+	)))?;
+
+	while let Some(block_size) = dit.next_size() {
+		size += block_size;
+	}
+	Ok(size)
+}
+
+#[cfg(test)]
+mod measure_diff_size_tests {
+	use super::measure_diff_size;
+	use test_mod::TextFile;
+
+	#[test]
+	fn works_test() {
+		let mut fa = TextFile::from_path("./test_data/a_a.txt");
+		let mut fb = TextFile::from_path("./test_data/a_b.txt");
+
+		let size = measure_diff_size(&mut fa, &mut fb).unwrap();
+		assert_eq!(size, 74);
+	}
 }
 
 /// Takes file, applies diffblock and writes to output

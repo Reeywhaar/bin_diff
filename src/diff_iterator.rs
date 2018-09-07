@@ -193,6 +193,33 @@ impl<T: WithIndexes> DiffIterator<T> {
 			}
 		}
 	}
+
+	pub fn next_size(&mut self) -> Option<u64> {
+		if self.pos >= self.diff.len() {
+			return None;
+		};
+
+		let item = &self.diff[self.pos];
+		self.pos += 1;
+
+		match item {
+			DiffBlockN::Skip(_size) => {
+				return Some(6);
+			}
+			DiffBlockN::Add(size) => {
+				return Some(6 + (*size as u64));
+			}
+			DiffBlockN::Remove(_size) => {
+				return Some(6);
+			}
+			DiffBlockN::Replace(_remove, add) => {
+				return Some(10 + (*add as u64));
+			}
+			DiffBlockN::ReplaceWithSameLength(size) => {
+				return Some(6 + (*size as u64));
+			}
+		}
+	}
 }
 
 #[cfg(test)]
