@@ -13,7 +13,7 @@ pub struct LinesWithHashIterator<T: WithIndexes> {
 
 impl<T: WithIndexes> LinesWithHashIterator<T> {
 	pub fn new(mut file: T) -> Result<Self, String> {
-		let indexes = Box::new(file.get_indexes().unwrap().get_ends());
+		let indexes = Box::new(file.get_indexes()?.get_ends());
 		return Ok(Self {
 			file: file,
 			indexes: indexes,
