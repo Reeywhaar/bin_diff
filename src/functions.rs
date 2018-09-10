@@ -190,7 +190,7 @@ pub fn read_n<T: Read>(mut input: &mut T, buf: &mut [u8], size: u32) -> IOResult
 pub fn compute_hash<T: Read>(input: &mut T) -> String {
 	let mut hasher = Sha256::default();
 
-	let mut buf: Vec<u8> = vec![0; 1024 * 64];
+	let mut buf: &mut [u8] = &mut [0u8; 1024 * 64];
 	while let Ok(x) = input.read(&mut buf) {
 		if x == 0 {
 			break;
@@ -203,8 +203,7 @@ pub fn compute_hash<T: Read>(input: &mut T) -> String {
 		.result()
 		.iter()
 		.map(|b| format!("{:02x}", b))
-		.collect::<Vec<String>>()
-		.join("");
+		.collect::<String>();
 }
 
 #[cfg(test)]
