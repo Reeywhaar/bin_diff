@@ -7,13 +7,13 @@ use std::io::{Read, SeekFrom};
 /// Yields indexes with appended hashes
 pub struct LinesWithHashIterator<T: WithIndexes> {
 	file: T,
-	indexes: Box<Indexes>,
+	indexes: Indexes,
 	pos: usize,
 }
 
 impl<T: WithIndexes> LinesWithHashIterator<T> {
 	pub fn new(mut file: T) -> Result<Self, String> {
-		let indexes = Box::new(file.get_indexes()?.get_ends());
+		let indexes = file.get_indexes()?.get_ends();
 		return Ok(Self {
 			file: file,
 			indexes: indexes,

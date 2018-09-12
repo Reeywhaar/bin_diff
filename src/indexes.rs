@@ -31,7 +31,7 @@ use std::path::PathBuf;
 /// Indexes implementation varies from format to format and is supposed to be implemented manually for each format
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Indexes {
-	order: Box<Vec<(String, u64, u64)>>,
+	order: Vec<(String, u64, u64)>,
 	pos: usize,
 }
 
@@ -39,7 +39,7 @@ impl Indexes {
 	/// Creates new `Indexes` instance
 	pub fn new() -> Self {
 		return Self {
-			order: Box::new(vec![]),
+			order: vec![],
 			pos: 0,
 		};
 	}
