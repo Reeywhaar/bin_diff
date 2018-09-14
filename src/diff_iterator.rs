@@ -48,21 +48,21 @@ impl<T: WithIndexes> DiffIterator<T> {
 		let diffs = Self::process_diff(&diffs);
 		let diffs = Self::process_diff_2(&diffs, &ind_a, &ind_b);
 
-		return Ok(Self {
+		Ok(Self {
 			file: file_b,
 			diff: diffs,
 			pos: 0,
 			file_pos: 0,
-		});
+		})
 	}
 
-	fn process_diff(diffs: &Vec<Difference>) -> Vec<DiffBlockN<usize>> {
+	fn process_diff(diffs: &[Difference]) -> Vec<DiffBlockN<usize>> {
 		let mut o: Vec<DiffBlockN<usize>> = vec![DiffBlockN::Skip(0)];
 
 		for d in diffs {
 			match d {
 				Difference::Same(x) => {
-					let blocks_n = x.matches("\n").count() + 1;
+					let blocks_n = x.matches('\n').count() + 1;
 					let last_item = o[o.len() - 1].clone();
 					if let DiffBlockN::Skip(n) = last_item {
 						let last_index = o.len() - 1;
@@ -72,10 +72,10 @@ impl<T: WithIndexes> DiffIterator<T> {
 					};
 				}
 				Difference::Rem(x) => {
-					o.push(DiffBlockN::Remove(x.matches("\n").count() + 1));
+					o.push(DiffBlockN::Remove(x.matches('\n').count() + 1));
 				}
 				Difference::Add(x) => {
-					let blocks_n = x.matches("\n").count() + 1;
+					let blocks_n = x.matches('\n').count() + 1;
 					let last_item = o[o.len() - 1].clone();
 					if let DiffBlockN::Remove(n) = last_item {
 						let last_index = o.len() - 1;
@@ -87,13 +87,13 @@ impl<T: WithIndexes> DiffIterator<T> {
 			}
 		}
 
-		return o;
+		o
 	}
 
 	fn process_diff_2(
-		diffs: &Vec<DiffBlockN<usize>>,
-		indexes_a: &Vec<(String, u64, u64, String)>,
-		indexes_b: &Vec<(String, u64, u64, String)>,
+		diffs: &[DiffBlockN<usize>],
+		indexes_a: &[(String, u64, u64, String)],
+		indexes_b: &[(String, u64, u64, String)],
 	) -> Vec<DiffBlockN<u32>> {
 		let mut o: Vec<DiffBlockN<u32>> = vec![];
 		let mut i_a = indexes_a.into_iter().map(|x| x.2 as u32);
@@ -102,27 +102,27 @@ impl<T: WithIndexes> DiffIterator<T> {
 		for item in diffs {
 			match item {
 				DiffBlockN::Skip(n) => {
-					let size = (&mut i_a).by_ref().take(*n).fold(0, |acc, x| acc + x);
+					let size = (&mut i_a).by_ref().take(*n).sum();
 					let _: Vec<_> = (&mut i_b).by_ref().take(*n).collect();
 					if size != 0 {
 						o.push(DiffBlockN::Skip(size));
 					}
 				}
 				DiffBlockN::Add(n) => {
-					let size = (&mut i_b).by_ref().take(*n).fold(0, |acc, x| acc + x);
+					let size = (&mut i_b).by_ref().take(*n).sum();
 					if size != 0 {
 						o.push(DiffBlockN::Add(size));
 					}
 				}
 				DiffBlockN::Remove(n) => {
-					let size = (&mut i_a).by_ref().take(*n).fold(0, |acc, x| acc + x);
+					let size = (&mut i_a).by_ref().take(*n).sum();
 					if size != 0 {
 						o.push(DiffBlockN::Remove(size));
 					}
 				}
 				DiffBlockN::Replace(r, a) => {
-					let remove = (&mut i_a).by_ref().take(*r).fold(0, |acc, x| acc + x);
-					let add = (&mut i_b).by_ref().take(*a).fold(0, |acc, x| acc + x);
+					let remove = (&mut i_a).by_ref().take(*r).sum();
+					let add = (&mut i_b).by_ref().take(*a).sum();
 					if remove != 0 && add != 0 {
 						if add == remove {
 							o.push(DiffBlockN::ReplaceWithSameLength(add));
@@ -139,7 +139,7 @@ impl<T: WithIndexes> DiffIterator<T> {
 			}
 		}
 
-		return o;
+		o
 	}
 
 	pub fn next_ref(&mut self) -> Option<Result<DiffBlock<u32>, String>> {
@@ -152,8 +152,8 @@ impl<T: WithIndexes> DiffIterator<T> {
 
 		match item {
 			DiffBlockN::Skip(size) => {
-				self.file_pos += *size as u64;
-				return Some(Ok(DiffBlock::Skip { size: *size }));
+				self.file_pos += u64::from(*size);
+				Some(Ok(DiffBlock::Skip { size: *size }))
 			}
 			DiffBlockN::Add(size) => {
 				let res = self.file.seek(SeekFrom::Start(self.file_pos));
@@ -161,25 +161,23 @@ impl<T: WithIndexes> DiffIterator<T> {
 					return Some(Err("Error while seeking file".to_string()));
 				};
 				let slice: ReadSlice =
-					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *size as u64);
-				self.file_pos += *size as u64;
-				return Some(Ok(DiffBlock::Add { data: slice }));
+					ReadSlice::take_from_current(&ReadSlice::new(&mut self.file), u64::from(*size));
+				self.file_pos += u64::from(*size);
+				Some(Ok(DiffBlock::Add { data: slice }))
 			}
-			DiffBlockN::Remove(size) => {
-				return Some(Ok(DiffBlock::Remove { size: *size }));
-			}
+			DiffBlockN::Remove(size) => Some(Ok(DiffBlock::Remove { size: *size })),
 			DiffBlockN::Replace(remove, add) => {
 				let res = self.file.seek(SeekFrom::Start(self.file_pos));
 				if res.is_err() {
 					return Some(Err("Error while seeking file".to_string()));
 				};
 				let slice =
-					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *add as u64);
-				self.file_pos += *add as u64;
-				return Some(Ok(DiffBlock::Replace {
+					ReadSlice::take_from_current(&ReadSlice::new(&mut self.file), u64::from(*add));
+				self.file_pos += u64::from(*add);
+				Some(Ok(DiffBlock::Replace {
 					remove_size: *remove,
 					data: slice,
-				}));
+				}))
 			}
 			DiffBlockN::ReplaceWithSameLength(size) => {
 				let res = self.file.seek(SeekFrom::Start(self.file_pos));
@@ -187,9 +185,9 @@ impl<T: WithIndexes> DiffIterator<T> {
 					return Some(Err("Error while seeking file".to_string()));
 				};
 				let slice =
-					ReadSlice::take_from_current(&mut ReadSlice::new(&mut self.file), *size as u64);
-				self.file_pos += *size as u64;
-				return Some(Ok(DiffBlock::ReplaceWithSameLength { data: slice }));
+					ReadSlice::take_from_current(&ReadSlice::new(&mut self.file), u64::from(*size));
+				self.file_pos += u64::from(*size);
+				Some(Ok(DiffBlock::ReplaceWithSameLength { data: slice }))
 			}
 		}
 	}
@@ -203,21 +201,11 @@ impl<T: WithIndexes> DiffIterator<T> {
 		self.pos += 1;
 
 		match item {
-			DiffBlockN::Skip(_size) => {
-				return Some(6);
-			}
-			DiffBlockN::Add(size) => {
-				return Some(6 + (*size as u64));
-			}
-			DiffBlockN::Remove(_size) => {
-				return Some(6);
-			}
-			DiffBlockN::Replace(_remove, add) => {
-				return Some(10 + (*add as u64));
-			}
-			DiffBlockN::ReplaceWithSameLength(size) => {
-				return Some(6 + (*size as u64));
-			}
+			DiffBlockN::Skip(_size) => Some(6),
+			DiffBlockN::Add(size) => Some(6 + (u64::from(*size))),
+			DiffBlockN::Remove(_size) => Some(6),
+			DiffBlockN::Replace(_remove, add) => Some(10 + (u64::from(*add))),
+			DiffBlockN::ReplaceWithSameLength(size) => Some(6 + (u64::from(*size))),
 		}
 	}
 }
@@ -237,8 +225,7 @@ mod diff_iterator_tests {
 			you should be worried
 			cos i heard shes been down
 			to the alley where the mishief runs
-			"
-				.to_string(),
+			".to_string(),
 		);
 		let file_b = TextFile::new(
 			"
@@ -249,8 +236,7 @@ mod diff_iterator_tests {
 			you should be worried
 			cos i heard shes been frown
 			to the alley where the mishief runs
-			"
-				.to_string(),
+			".to_string(),
 		);
 		let mut it = DiffIterator::new(file_a, file_b).unwrap();
 		let mut i = 0;

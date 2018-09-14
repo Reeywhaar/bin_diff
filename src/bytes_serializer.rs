@@ -11,17 +11,17 @@ impl<T> BytesSerializer<T> {
 		value: T,
 		closure: Box<dyn FnMut(&mut usize, &mut T, &mut [u8]) -> Result<usize>>,
 	) -> Self {
-		return Self {
+		Self {
 			pos: 0,
-			value: value,
-			closure: closure,
-		};
+			value,
+			closure,
+		}
 	}
 }
 
 impl<T> Read for BytesSerializer<T> {
 	fn read(&mut self, mut buffer: &mut [u8]) -> Result<usize> {
-		return (self.closure)(&mut self.pos, &mut self.value, &mut buffer);
+		(self.closure)(&mut self.pos, &mut self.value, &mut buffer)
 	}
 }
 

@@ -52,42 +52,40 @@ impl<'a, 'b: 'a> DiffReader<'a, 'b> {
 					0 => {
 						read_n(input, &mut self.buffer, 4)?;
 						let size = vec_to_u32_be(&self.buffer);
-						return Ok(Some(DiffBlock::Skip { size }));
+						Ok(Some(DiffBlock::Skip { size }))
 					}
 					1 => {
 						read_n(input, &mut self.buffer, 4)?;
 						let size = vec_to_u32_be(&self.buffer);
-						let mut data = ReadSlice::take_from_current(input, size as u64);
-						ReadSlice::seek(input, SeekFrom::Current(size as i64))?;
-						return Ok(Some(DiffBlock::Add { data }));
+						let mut data = ReadSlice::take_from_current(input, u64::from(size));
+						ReadSlice::seek(input, SeekFrom::Current(i64::from(size)))?;
+						Ok(Some(DiffBlock::Add { data }))
 					}
 					2 => {
 						read_n(input, &mut self.buffer, 4)?;
 						let size = vec_to_u32_be(&self.buffer);
-						return Ok(Some(DiffBlock::Remove { size }));
+						Ok(Some(DiffBlock::Remove { size }))
 					}
 					3 => {
 						read_n(input, &mut self.buffer, 4)?;
 						let remove_size = vec_to_u32_be(&self.buffer);
 						read_n(input, &mut self.buffer, 4)?;
 						let size = vec_to_u32_be(&self.buffer);
-						let mut data = ReadSlice::take_from_current(input, size as u64);
-						ReadSlice::seek(input, SeekFrom::Current(size as i64))?;
-						return Ok(Some(DiffBlock::Replace { remove_size, data }));
+						let mut data = ReadSlice::take_from_current(input, u64::from(size));
+						ReadSlice::seek(input, SeekFrom::Current(i64::from(size)))?;
+						Ok(Some(DiffBlock::Replace { remove_size, data }))
 					}
 					4 => {
 						read_n(input, &mut self.buffer, 4)?;
 						let size = vec_to_u32_be(&self.buffer);
-						let mut data = ReadSlice::take_from_current(input, size as u64);
-						ReadSlice::seek(input, SeekFrom::Current(size as i64))?;
-						return Ok(Some(DiffBlock::ReplaceWithSameLength { data }));
+						let mut data = ReadSlice::take_from_current(input, u64::from(size));
+						ReadSlice::seek(input, SeekFrom::Current(i64::from(size)))?;
+						Ok(Some(DiffBlock::ReplaceWithSameLength { data }))
 					}
-					_ => return Err(Error::new(ErrorKind::InvalidData, "Unknown Action")),
+					_ => Err(Error::new(ErrorKind::InvalidData, "Unknown Action")),
 				}
 			}
-			Either::Vector(ref mut input) => {
-				return Ok(vec_shift(input));
-			}
+			Either::Vector(ref mut input) => Ok(vec_shift(input)),
 		}
 	}
 
@@ -99,6 +97,6 @@ impl<'a, 'b: 'a> DiffReader<'a, 'b> {
 			out.push(block);
 		}
 
-		return Ok(out);
+		Ok(out)
 	}
 }

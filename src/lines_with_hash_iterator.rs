@@ -14,15 +14,15 @@ pub struct LinesWithHashIterator<T: WithIndexes> {
 impl<T: WithIndexes> LinesWithHashIterator<T> {
 	pub fn new(mut file: T) -> Result<Self, String> {
 		let indexes = file.get_indexes()?.get_ends();
-		return Ok(Self {
-			file: file,
-			indexes: indexes,
+		Ok(Self {
+			file,
+			indexes,
 			pos: 0,
-		});
+		})
 	}
 
 	pub fn get_read(self) -> T {
-		return self.file;
+		self.file
 	}
 }
 
@@ -41,6 +41,6 @@ impl<T: WithIndexes> Iterator for LinesWithHashIterator<T> {
 		};
 
 		self.pos += 1;
-		return Some((item.0, item.1, item.2, hash));
+		Some((item.0, item.1, item.2, hash))
 	}
 }

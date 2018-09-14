@@ -1,6 +1,6 @@
 [package]
 name = "bin_diff"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Vyrtsev Mikhail <reeywhaar@gmail.com>"]
 
 [dependencies]

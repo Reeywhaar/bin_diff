@@ -9,26 +9,26 @@ pub struct Drain<T: Read> {
 
 impl<T: Read> Drain<T> {
 	pub fn new(inner: T, limit: u64) -> Self {
-		return Self {
+		Self {
 			inner,
 			limit,
 			drained: 0,
-		};
+		}
 	}
 
 	#[allow(dead_code)]
 	pub fn into_inner(self) -> T {
-		return self.inner;
+		self.inner
 	}
 
 	#[allow(dead_code)]
 	pub fn get_ref(&self) -> &T {
-		return &self.inner;
+		&self.inner
 	}
 
 	#[allow(dead_code)]
 	pub fn get_mut(&mut self) -> &mut T {
-		return &mut self.inner;
+		&mut self.inner
 	}
 
 	pub fn get_drained(&mut self) -> Result<()> {
@@ -52,14 +52,14 @@ impl<T: Read> Drain<T> {
 			self.drained += d;
 		}
 
-		return Ok(());
+		Ok(())
 	}
 }
 
 impl<T: Read> Read for Drain<T> {
 	fn read(&mut self, mut buffer: &mut [u8]) -> Result<usize> {
 		self.get_drained()?;
-		return self.inner.read(&mut buffer);
+		self.inner.read(&mut buffer)
 	}
 }
 
@@ -69,7 +69,7 @@ pub trait Drainable: Read + Sized {
 
 impl<T: Read> Drainable for T {
 	fn drain(self, limit: u64) -> Drain<Self> {
-		return Drain::new(self, limit);
+		Drain::new(self, limit)
 	}
 }
 

@@ -6,31 +6,31 @@ use std::io::{BufReader, Error, ErrorKind, Read, Result as IOResult};
 use std::mem::transmute_copy;
 
 /// Serializes u16 to u8 array
-pub fn u16_to_u8_be_vec<'a>(n: &u16) -> [u8; 2] {
+pub fn u16_to_u8_be_vec(n: u16) -> [u8; 2] {
 	let bytes: [u8; 2] = unsafe { transmute_copy::<u16, [u8; 2]>(&n.to_be()) };
 	bytes
 }
 
 #[test]
 fn u16_to_u8_be_vec_test() {
-	let b = u16_to_u8_be_vec(&10u16);
+	let b = u16_to_u8_be_vec(10u16);
 	assert_eq!(b, [0x00, 10]);
 }
 
 /// Serializes u32 to u8 array
-pub fn u32_to_u8_be_vec<'a>(n: &u32) -> [u8; 4] {
+pub fn u32_to_u8_be_vec(n: u32) -> [u8; 4] {
 	let bytes: [u8; 4] = unsafe { transmute_copy::<u32, [u8; 4]>(&n.to_be()) };
 	bytes
 }
 
 #[test]
 fn u32_to_u8_be_vec_test() {
-	let b = u32_to_u8_be_vec(&10u32);
+	let b = u32_to_u8_be_vec(10u32);
 	assert_eq!(b, [0x00, 0x00, 0x00, 10]);
 }
 
 /// Serializes u64 to u8 array
-pub fn u64_to_u8_be_vec(n: &u64) -> [u8; 8] {
+pub fn u64_to_u8_be_vec(n: u64) -> [u8; 8] {
 	let bytes: [u8; 8] = unsafe { transmute_copy::<u64, [u8; 8]>(&n.to_be()) };
 	bytes
 }
@@ -38,7 +38,7 @@ pub fn u64_to_u8_be_vec(n: &u64) -> [u8; 8] {
 #[test]
 fn u64_to_u8_be_vec_test() {
 	assert_eq!(
-		u64_to_u8_be_vec(&10u64),
+		u64_to_u8_be_vec(10u64),
 		[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 10]
 	);
 }
@@ -47,24 +47,24 @@ fn u64_to_u8_be_vec_test() {
 pub fn vec_to_usize_be(input: &[u8]) -> usize {
 	let mut o: usize = 0;
 	let len = input.len();
-	for i in 0..len {
-		let shift = len - i - 1;
-		let s = (input[i] as usize) << (shift * 8);
-		o = o | s;
+	for (index, item) in input.iter().enumerate() {
+		let shift = len - index - 1;
+		let s = (*item as usize) << (shift * 8);
+		o |= s;
 	}
-	return o;
+	o
 }
 
 /// Converts u8 slice to u32 BigEndian
 pub fn vec_to_u32_be(input: &[u8]) -> u32 {
 	let mut o: u32 = 0;
 	let len = input.len();
-	for i in 0..len {
-		let shift = len - i - 1;
-		let s = (input[i] as u32) << (shift * 8);
-		o = o | s;
+	for (index, item) in input.iter().enumerate() {
+		let shift = len - index - 1;
+		let s = u32::from(*item) << (shift * 8);
+		o |= s;
 	}
-	return o;
+	o
 }
 
 #[test]
@@ -75,19 +75,17 @@ fn vec_to_u32_be_test() {
 /// Converts u8 slice to u32 LittleEndian
 pub fn vec_to_usize_le(input: &[u8]) -> usize {
 	let mut o: usize = 0;
-	let len = input.len();
-	for i in 0..len {
-		let s = (input[i] as usize) << (i * 8);
-		o = o | s;
+	for (index, item) in input.iter().enumerate() {
+		let s = (*item as usize) << (index * 8);
+		o |= s;
 	}
-	return o;
+	o
 }
 
 /// Converts u8 slice to i16 BigEndian
 pub fn vec_to_i16_be(n: &[u8]) -> i16 {
 	let n = vec_to_usize_be(n);
-	let o = unsafe { transmute_copy::<usize, i16>(&n) };
-	return o;
+	unsafe { transmute_copy::<usize, i16>(&n) }
 }
 
 #[test]
@@ -99,22 +97,21 @@ fn vec_to_i16_be_test() {
 
 /// Converts u16 slice to i16
 pub fn u_to_i16_be(n: u16) -> i16 {
-	let o = unsafe { transmute_copy::<u16, i16>(&n) };
-	return o;
+	unsafe { transmute_copy::<u16, i16>(&n) }
 }
 
 /// Reads n bytes from reader and converts to usize BigEndian
 pub fn read_usize_be<T: Read>(input: &mut T, size: usize) -> Result<usize, Error> {
 	let mut buf = vec![0u8; size];
 	input.read_exact(&mut buf)?;
-	return Ok(vec_to_usize_be(&buf));
+	Ok(vec_to_usize_be(&buf))
 }
 
 /// Reads n bytes from reader and converts to usize LittleEndian
 pub fn read_usize_le<T: Read>(input: &mut T, size: usize) -> Result<usize, Error> {
 	let mut buf = vec![0u8; size];
 	input.read_exact(&mut buf)?;
-	return Ok(vec_to_usize_le(&buf));
+	Ok(vec_to_usize_le(&buf))
 }
 
 /// used to compare T: Read
@@ -133,7 +130,7 @@ pub fn cmp_read<'a, T: Read>(
 		if read_a == 0 && read_b.is_err() {
 			return Ok(true);
 		};
-		if read_a == 0 && !read_b.is_err() {
+		if read_a == 0 && read_b.is_ok() {
 			return Ok(false);
 		};
 		if read_b.is_err() {
@@ -150,25 +147,25 @@ pub fn cmp_read<'a, T: Read>(
 
 /// Removes first item from vector and returns it
 pub fn vec_shift<T>(vec: &mut Vec<T>) -> Option<T> {
-	if vec.len() == 0 {
+	if vec.is_empty() {
 		return None;
 	};
-	return Some(vec.remove(0));
+	Some(vec.remove(0))
 }
 
 /// for comparation of medium chunks with buffer of 64kb, for comparation of small chunks use cmp_read_small
 pub fn cmp_read_medium<'a, T: Read>(mut a: &'a mut T, mut b: &'a mut T) -> IOResult<bool> {
-	return cmp_read(&mut a, &mut b, 64);
+	cmp_read(&mut a, &mut b, 64)
 }
 
 /// used to compare small chunks, buffer is 1kb
 pub fn cmp_read_small<'a, T: Read>(mut a: &'a mut T, mut b: &'a mut T) -> IOResult<bool> {
-	return cmp_read(&mut a, &mut b, 1);
+	cmp_read(&mut a, &mut b, 1)
 }
 
 /// Reads n bytes from reader
 pub fn read_n<T: Read>(mut input: &mut T, buf: &mut [u8], size: u32) -> IOResult<usize> {
-	let mut taken = (&mut input).take(size as u64);
+	let mut taken = (&mut input).take(u64::from(size));
 	let mut read: usize = 0;
 	let mut attempts = 0;
 	while read < size as usize {
@@ -199,11 +196,11 @@ pub fn compute_hash<T: Read>(input: &mut T) -> String {
 		hasher.input(slice);
 	}
 
-	return hasher
+	hasher
 		.result()
 		.iter()
 		.map(|b| format!("{:02x}", b))
-		.collect::<String>();
+		.collect::<String>()
 }
 
 #[cfg(test)]

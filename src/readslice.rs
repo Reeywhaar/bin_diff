@@ -22,7 +22,7 @@ impl<'a> Slice<'a> {
 		v.seek(SeekFrom::Start(init_pos)).unwrap();
 		Self {
 			v: Rc::new(Mutex::new(Box::new(v))),
-			size: size,
+			size,
 			initial_position: init_pos,
 			position: 0,
 		}
@@ -31,14 +31,14 @@ impl<'a> Slice<'a> {
 	pub fn offset(&self, offset: u64) -> Self {
 		let mut clone = self.clone();
 		let offset = min(clone.size, offset);
-		clone.size = clone.size - offset;
+		clone.size -= offset;
 		clone.initial_position += offset;
 		clone.position = if offset > clone.position {
 			0
 		} else {
 			clone.position - offset
 		};
-		return clone;
+		clone
 	}
 
 	pub fn take(&self, size: u64) -> Self {
@@ -53,7 +53,7 @@ impl<'a> Slice<'a> {
 		if clone.position > size {
 			clone.position = size;
 		};
-		return clone;
+		clone
 	}
 }
 
@@ -71,7 +71,7 @@ impl<'a> Clone for Slice<'a> {
 	fn clone(&self) -> Self {
 		Self {
 			v: self.v.clone(),
-			size: self.size.clone(),
+			size: self.size,
 			initial_position: self.initial_position,
 			position: self.position,
 		}
@@ -86,7 +86,7 @@ impl<'a> Read for Slice<'a> {
 		let end = min(maxread, buffer.len());
 		let read = self.v.lock().unwrap().read(&mut buffer[0..end])?;
 		self.position += read as u64;
-		return Ok(read);
+		Ok(read)
 	}
 }
 
@@ -97,17 +97,17 @@ impl<'a> Seek for Slice<'a> {
 				let pos = self.initial_position + x;
 				let seek = self.v.lock().unwrap().seek(SeekFrom::Start(pos))?;
 				self.position = seek - self.initial_position;
-				return Ok(self.position);
+				Ok(self.position)
 			}
 			SeekFrom::End(x) => {
 				let seek = self.v.lock().unwrap().seek(SeekFrom::End(x))?;
 				self.position = seek - self.initial_position;
-				return Ok(self.position);
+				Ok(self.position)
 			}
 			SeekFrom::Current(x) => {
 				let seek = self.v.lock().unwrap().seek(SeekFrom::Current(x))?;
 				self.position = seek - self.initial_position;
-				return Ok(self.position);
+				Ok(self.position)
 			}
 		}
 	}
@@ -134,26 +134,26 @@ impl<'a> ReadSlice<'a> {
 		let size = slice.size;
 		Self {
 			slices: vec![slice],
-			size: size,
+			size,
 		}
 	}
 
 	pub fn position(&self) -> u64 {
 		let mut pos = 0;
-		for item in self.slices.iter() {
+		for item in &self.slices {
 			pos += item.position;
 			if item.position < item.size {
 				break;
 			};
 		}
-		return pos;
+		pos
 	}
 
 	pub fn offset(&self, offset: u64) -> Self {
 		let mut clone = self.clone();
 		let mut c_size = 0;
 		let mut cut = 0;
-		for item in clone.slices.iter_mut() {
+		for item in &mut clone.slices {
 			if c_size + item.size > offset {
 				*item = item.offset(offset - c_size);
 				break;
@@ -165,13 +165,13 @@ impl<'a> ReadSlice<'a> {
 			clone.slices.drain(0..cut);
 		};
 		clone.size = clone.slices.iter().fold(0, |c, x| c + x.size);
-		return clone;
+		clone
 	}
 
 	pub fn offset_mut(&mut self, offset: u64) {
 		let mut c_size = 0;
 		let mut cut = 0;
-		for item in self.slices.iter_mut() {
+		for item in &mut self.slices {
 			if c_size + item.size > offset {
 				*item = item.offset(offset - c_size);
 				break;
@@ -189,7 +189,7 @@ impl<'a> ReadSlice<'a> {
 		let mut clone = self.clone();
 		let mut c_size = size;
 		let mut cut = 0;
-		for item in clone.slices.iter_mut() {
+		for item in &mut clone.slices {
 			if item.size > c_size {
 				*item = Slice::take(item, c_size);
 				break;
@@ -197,18 +197,18 @@ impl<'a> ReadSlice<'a> {
 			cut += 1;
 			c_size -= item.size;
 		}
-		if cut + 1 <= clone.slices.len() {
+		if cut < clone.slices.len() {
 			clone.slices.drain(cut + 1..);
 		};
 		clone.size = clone.slices.iter().fold(0, |c, x| c + x.size);
-		return clone;
+		clone
 	}
 
 	pub fn take_from_current(&self, size: u64) -> Self {
 		let mut clone = self.clone();
 		let pos = clone.position();
 		clone.offset_mut(pos);
-		return ReadSlice::take(&clone, size);
+		ReadSlice::take(&clone, size)
 	}
 
 	pub fn chain<T: 'a + ReadSeek>(&self, other: T) -> Self {
@@ -217,17 +217,17 @@ impl<'a> ReadSlice<'a> {
 		let slice_size = slice.size;
 		clone.slices.push(slice);
 		clone.size += slice_size;
-		return clone;
+		clone
 	}
 
 	#[allow(dead_code)]
 	pub fn rewind(&mut self) -> &mut Self {
 		self.seek(SeekFrom::Start(0)).unwrap();
-		return self;
+		self
 	}
 
 	pub fn size(&self) -> u64 {
-		return self.size;
+		self.size
 	}
 }
 
@@ -244,12 +244,12 @@ impl<'a> Read for ReadSlice<'a> {
 	fn read(&mut self, buffer: &mut [u8]) -> IOResult<usize> {
 		let mut read = 0;
 		let buflen = buffer.len();
-		for slice in self.slices.iter_mut() {
+		for slice in &mut self.slices {
 			while !(read >= buflen || slice.position >= slice.size) {
 				read += slice.read(&mut buffer[read..])?;
 			}
 		}
-		return Ok(read);
+		Ok(read)
 	}
 }
 
@@ -258,28 +258,28 @@ impl<'a> Seek for ReadSlice<'a> {
 		match from {
 			SeekFrom::Start(x) => {
 				let mut seek = 0;
-				for slice in self.slices.iter_mut() {
+				for slice in &mut self.slices {
 					seek += slice.seek(SeekFrom::Start(x - seek))?;
 					if seek >= x {
 						break;
 					}
 				}
-				return Ok(seek);
+				Ok(seek)
 			}
 			SeekFrom::End(x) => {
 				let p = self.size as i64 - x;
-				return self.seek(SeekFrom::Start(p as u64));
+				self.seek(SeekFrom::Start(p as u64))
 			}
 			SeekFrom::Current(x) => {
 				let mut pos = 0;
-				for slice in self.slices.iter() {
+				for slice in &self.slices {
 					pos += slice.position;
 					if slice.position < slice.size {
 						break;
 					}
 				}
 				let pos = pos as i64 + x;
-				return self.seek(SeekFrom::Start(pos as u64));
+				self.seek(SeekFrom::Start(pos as u64))
 			}
 		}
 	}

@@ -40,7 +40,7 @@ impl<'a> DiffBlock<'a, u32> {
 			DiffBlock::Replace { .. } => action += 4,
 			DiffBlock::ReplaceWithSameLength { .. } => action += 5,
 		}
-		return action;
+		action
 	}
 
 	pub fn diff(
@@ -59,22 +59,18 @@ impl<'a> DiffBlock<'a, u32> {
 			// 	< skip(x) next(nil, skip(y - x))
 			11 => match (self, other) {
 				(DiffBlock::Skip { size: x }, DiffBlock::Skip { size: y }) => {
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => return (Some(DiffBlock::Skip { size: x }), None, None),
-						Cmp::Greater => {
-							return (
-								Some(DiffBlock::Skip { size: y }),
-								Some(DiffBlock::Skip { size: x - y }),
-								None,
-							)
-						}
-						Cmp::Less => {
-							return (
-								Some(DiffBlock::Skip { size: x }),
-								None,
-								Some(DiffBlock::Skip { size: y - x }),
-							)
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (Some(DiffBlock::Skip { size: x }), None, None),
+						Cmp::Greater => (
+							Some(DiffBlock::Skip { size: y }),
+							Some(DiffBlock::Skip { size: x - y }),
+							None,
+						),
+						Cmp::Less => (
+							Some(DiffBlock::Skip { size: x }),
+							None,
+							Some(DiffBlock::Skip { size: y - x }),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
@@ -82,7 +78,7 @@ impl<'a> DiffBlock<'a, u32> {
 
 			// skip(x) | add(y) =
 			// 	= add(y) next(skip(x))
-			12 => return (Some(other), Some(self), None),
+			12 => (Some(other), Some(self), None),
 
 			// skip(x) | remove(y) =
 			// 	= remove(x)
@@ -90,22 +86,18 @@ impl<'a> DiffBlock<'a, u32> {
 			// 	< remove(x) next(nil , remove(y - x))
 			13 => match (self, other) {
 				(DiffBlock::Skip { size: x }, DiffBlock::Remove { size: y }) => {
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => return (Some(DiffBlock::Remove { size: x }), None, None),
-						Cmp::Greater => {
-							return (
-								Some(DiffBlock::Remove { size: y }),
-								Some(DiffBlock::Skip { size: x - y }),
-								None,
-							)
-						}
-						Cmp::Less => {
-							return (
-								Some(DiffBlock::Remove { size: x }),
-								None,
-								Some(DiffBlock::Remove { size: y - x }),
-							)
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (Some(DiffBlock::Remove { size: x }), None, None),
+						Cmp::Greater => (
+							Some(DiffBlock::Remove { size: y }),
+							Some(DiffBlock::Skip { size: x - y }),
+							None,
+						),
+						Cmp::Less => (
+							Some(DiffBlock::Remove { size: x }),
+							None,
+							Some(DiffBlock::Remove { size: y - x }),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
@@ -122,31 +114,25 @@ impl<'a> DiffBlock<'a, u32> {
 						remove_size: y,
 						data: datab,
 					},
-				) => match Cmp::cmp(x, y) {
-					Cmp::Equal => {
-						return (
-							Some(DiffBlock::Remove { size: x }),
-							None,
-							Some(DiffBlock::Add { data: datab }),
-						)
-					}
-					Cmp::Greater => {
-						return (
-							Some(DiffBlock::Remove { size: x }),
-							Some(DiffBlock::Skip { size: x - y }),
-							Some(DiffBlock::Add { data: datab }),
-						)
-					}
-					Cmp::Less => {
-						return (
-							Some(DiffBlock::Remove { size: x }),
-							None,
-							Some(DiffBlock::Replace {
-								remove_size: y - x,
-								data: datab,
-							}),
-						)
-					}
+				) => match Cmp::cmp(&x, &y) {
+					Cmp::Equal => (
+						Some(DiffBlock::Remove { size: x }),
+						None,
+						Some(DiffBlock::Add { data: datab }),
+					),
+					Cmp::Greater => (
+						Some(DiffBlock::Remove { size: x }),
+						Some(DiffBlock::Skip { size: x - y }),
+						Some(DiffBlock::Add { data: datab }),
+					),
+					Cmp::Less => (
+						Some(DiffBlock::Remove { size: x }),
+						None,
+						Some(DiffBlock::Replace {
+							remove_size: y - x,
+							data: datab,
+						}),
+					),
 				},
 				_ => panic!("DiffBlock diff unwrap failed"),
 			},
@@ -161,31 +147,25 @@ impl<'a> DiffBlock<'a, u32> {
 					DiffBlock::ReplaceWithSameLength { data: mut datab },
 				) => {
 					let y = datab.size() as u32;
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => {
-							return (
-								Some(DiffBlock::Remove { size: x }),
-								None,
-								Some(DiffBlock::Add { data: datab }),
-							)
-						}
-						Cmp::Greater => {
-							return (
-								Some(DiffBlock::Remove { size: x }),
-								Some(DiffBlock::Skip { size: x - y }),
-								Some(DiffBlock::Add { data: datab }),
-							)
-						}
-						Cmp::Less => {
-							return (
-								Some(DiffBlock::Remove { size: x }),
-								None,
-								Some(DiffBlock::Replace {
-									remove_size: y - x,
-									data: datab,
-								}),
-							)
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (
+							Some(DiffBlock::Remove { size: x }),
+							None,
+							Some(DiffBlock::Add { data: datab }),
+						),
+						Cmp::Greater => (
+							Some(DiffBlock::Remove { size: x }),
+							Some(DiffBlock::Skip { size: x - y }),
+							Some(DiffBlock::Add { data: datab }),
+						),
+						Cmp::Less => (
+							Some(DiffBlock::Remove { size: x }),
+							None,
+							Some(DiffBlock::Replace {
+								remove_size: y - x,
+								data: datab,
+							}),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
@@ -198,31 +178,29 @@ impl<'a> DiffBlock<'a, u32> {
 			21 => match (self, other) {
 				(DiffBlock::Add { mut data }, DiffBlock::Skip { size: y }) => {
 					let x = data.size() as u32;
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => return (Some(DiffBlock::Add { data: data }), None, None),
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (Some(DiffBlock::Add { data }), None, None),
 						Cmp::Greater => {
-							let da = ReadSlice::take(&mut data, y as u64);
-							let db = data.offset(y as u64);
-							return (
+							let da = ReadSlice::take(&data, u64::from(y));
+							let db = data.offset(u64::from(y));
+							(
 								Some(DiffBlock::Add { data: da }),
 								Some(DiffBlock::Add { data: db }),
 								None,
-							);
-						}
-						Cmp::Less => {
-							return (
-								Some(DiffBlock::Add { data: data }),
-								None,
-								Some(DiffBlock::Skip { size: y - x }),
 							)
 						}
+						Cmp::Less => (
+							Some(DiffBlock::Add { data }),
+							None,
+							Some(DiffBlock::Skip { size: y - x }),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
 			},
 
 			// add(x) | add (y) = add(y) next(add(x))
-			22 => return (Some(other), Some(self), None),
+			22 => (Some(other), Some(self), None),
 
 			// add(x) | remove(y) =
 			// 	= nil
@@ -231,22 +209,16 @@ impl<'a> DiffBlock<'a, u32> {
 			23 => match (self, other) {
 				(DiffBlock::Add { mut data }, DiffBlock::Remove { size: y }) => {
 					let x = data.size() as u32;
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => {
-							return (None, None, None);
-						}
-						Cmp::Greater => {
-							return (
-								None,
-								Some(DiffBlock::Add {
-									data: data.offset(y as u64),
-								}),
-								None,
-							);
-						}
-						Cmp::Less => {
-							return (None, None, Some(DiffBlock::Remove { size: y - x }));
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (None, None, None),
+						Cmp::Greater => (
+							None,
+							Some(DiffBlock::Add {
+								data: data.offset(u64::from(y)),
+							}),
+							None,
+						),
+						Cmp::Less => (None, None, Some(DiffBlock::Remove { size: y - x })),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
@@ -265,29 +237,23 @@ impl<'a> DiffBlock<'a, u32> {
 					},
 				) => {
 					let x = data.size() as u32;
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => {
-							return (None, None, Some(DiffBlock::Add { data: datab }));
-						}
-						Cmp::Greater => {
-							return (
-								Some(DiffBlock::Add { data: datab }),
-								Some(DiffBlock::Add {
-									data: data.offset(y as u64),
-								}),
-								None,
-							);
-						}
-						Cmp::Less => {
-							return (
-								None,
-								None,
-								Some(DiffBlock::Replace {
-									remove_size: y - x,
-									data: datab,
-								}),
-							);
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (None, None, Some(DiffBlock::Add { data: datab })),
+						Cmp::Greater => (
+							Some(DiffBlock::Add { data: datab }),
+							Some(DiffBlock::Add {
+								data: data.offset(u64::from(y)),
+							}),
+							None,
+						),
+						Cmp::Less => (
+							None,
+							None,
+							Some(DiffBlock::Replace {
+								remove_size: y - x,
+								data: datab,
+							}),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
@@ -304,58 +270,50 @@ impl<'a> DiffBlock<'a, u32> {
 				) => {
 					let x = data.size();
 					let y = datab.size();
-					match Cmp::cmp(x, y) {
-						Cmp::Equal => {
-							return (None, None, Some(DiffBlock::Add { data: datab }));
-						}
-						Cmp::Greater => {
-							return (
-								Some(DiffBlock::Add { data: datab }),
-								Some(DiffBlock::Add {
-									data: data.offset(y as u64),
-								}),
-								None,
-							);
-						}
-						Cmp::Less => {
-							return (
-								None,
-								None,
-								Some(DiffBlock::Replace {
-									remove_size: (y - x) as u32,
-									data: datab,
-								}),
-							);
-						}
+					match Cmp::cmp(&x, &y) {
+						Cmp::Equal => (None, None, Some(DiffBlock::Add { data: datab })),
+						Cmp::Greater => (
+							Some(DiffBlock::Add { data: datab }),
+							Some(DiffBlock::Add {
+								data: data.offset(y as u64),
+							}),
+							None,
+						),
+						Cmp::Less => (
+							None,
+							None,
+							Some(DiffBlock::Replace {
+								remove_size: (y - x) as u32,
+								data: datab,
+							}),
+						),
 					}
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
 			},
 
 			// remove(x) | skip(y) = remove(x) next(nil, skip(y))
-			31 => return (Some(self), None, Some(other)),
+			31 => (Some(self), None, Some(other)),
 
 			// remove(x) | add(y) = remove(x) nextb(nil, add(y))
-			32 => return (Some(self), None, Some(other)),
+			32 => (Some(self), None, Some(other)),
 
 			// remove(x) | remove(y) = remove(x) nextb(nil, remove(y))
-			33 => return (Some(self), None, Some(other)),
+			33 => (Some(self), None, Some(other)),
 
 			// remove(x) | replace(y, z) = remove(x) nextb(nil, replace(y, z))
-			34 => return (Some(self), None, Some(other)),
+			34 => (Some(self), None, Some(other)),
 
 			// remove(x) | replace(y, z) = remove(x) nextb(nil, replace(y, z))
-			35 => return (Some(self), None, Some(other)),
+			35 => (Some(self), None, Some(other)),
 
 			// replace(x, y) | skip(z) = remove(x) next(add(y), skip(z))
 			41...45 => match self {
-				DiffBlock::Replace { remove_size, data } => {
-					return (
-						Some(DiffBlock::Remove { size: remove_size }),
-						Some(DiffBlock::Add { data: data }),
-						Some(other),
-					)
-				}
+				DiffBlock::Replace { remove_size, data } => (
+					Some(DiffBlock::Remove { size: remove_size }),
+					Some(DiffBlock::Add { data }),
+					Some(other),
+				),
 				_ => panic!("DiffBlock diff unwrap failed"),
 			},
 
@@ -363,11 +321,11 @@ impl<'a> DiffBlock<'a, u32> {
 			51...55 => match self {
 				DiffBlock::ReplaceWithSameLength { mut data } => {
 					let size = data.size();
-					return (
+					(
 						Some(DiffBlock::Remove { size: size as u32 }),
-						Some(DiffBlock::Add { data: data }),
+						Some(DiffBlock::Add { data }),
 						Some(other),
-					);
+					)
 				}
 				_ => panic!("DiffBlock diff unwrap failed"),
 			},
@@ -387,99 +345,95 @@ impl<'a> Add for DiffBlock<'a, u32> {
 			// skip(x) + skip(y) = skip(x + y)
 			11 => match (self, other) {
 				(DiffBlock::Skip { size: s1 }, DiffBlock::Skip { size: s2 }) => {
-					return (DiffBlock::Skip { size: s1 + s2 }, None);
+					(DiffBlock::Skip { size: s1 + s2 }, None)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// skip(x) + add(y) = skip(x) add(y)
-			12 => return (self, Some(other)),
+			12 => (self, Some(other)),
 			// skip(x) + remove(y)     = skip(x) remove(y)
-			13 => return (self, Some(other)),
+			13 => (self, Some(other)),
 			// skip(x) + replace(y, z) = skip(x) replace(y, z)
-			14 => return (self, Some(other)),
+			14 => (self, Some(other)),
 			// skip(x) + replace(y, z) = skip(x) replace(y, z)
-			15 => return (self, Some(other)),
+			15 => (self, Some(other)),
 
 			// add
 			// add(x) + skip(y)       = add(x) skip(y)
-			21 => return (self, Some(other)),
+			21 => (self, Some(other)),
 			// add(x) + add(y)        = add(x + y)
 			22 => match (self, other) {
-				(DiffBlock::Add { mut data }, DiffBlock::Add { data: mut datab }) => {
-					return (
-						DiffBlock::Add {
-							data: ReadSlice::chain(&mut data, datab),
-						},
-						None,
-					);
-				}
+				(DiffBlock::Add { mut data }, DiffBlock::Add { data: mut datab }) => (
+					DiffBlock::Add {
+						data: ReadSlice::chain(&data, datab),
+					},
+					None,
+				),
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// add(x) + remove(y)     = add(x) remove(y)
-			23 => return (self, Some(other)),
+			23 => (self, Some(other)),
 			// add(x) + replace(y, z) = add(x) replace(y, z)
-			24 => return (self, Some(other)),
+			24 => (self, Some(other)),
 			// add(x) + replace(y, z) = add(x) replace(y, z)
-			25 => return (self, Some(other)),
+			25 => (self, Some(other)),
 
 			// remove
 			// remove(x) + skip(y) = remove(x) skip(y)
-			31 => return (self, Some(other)),
+			31 => (self, Some(other)),
 			// remove(x) + add(y) = replace(x, y)
 			32 => match (self, other) {
 				(DiffBlock::Remove { size }, DiffBlock::Add { mut data }) => {
 					let sizeb = data.size() as u32;
 					if size == sizeb {
-						return (DiffBlock::ReplaceWithSameLength { data: data }, None);
+						return (DiffBlock::ReplaceWithSameLength { data }, None);
 					}
-					return (
+					(
 						DiffBlock::Replace {
 							remove_size: size,
-							data: data,
+							data,
 						},
 						None,
-					);
+					)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// remove(x) + remove(y) = remove(x + y)
 			33 => match (self, other) {
 				(DiffBlock::Remove { size }, DiffBlock::Remove { size: sizeb }) => {
-					return (DiffBlock::Remove { size: size + sizeb }, None);
+					(DiffBlock::Remove { size: size + sizeb }, None)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// remove(x) + replace(y, z) = replace(x + y, z)
 			34 => match (self, other) {
-				(DiffBlock::Remove { size }, DiffBlock::Replace { remove_size, data }) => {
-					return (
-						DiffBlock::Replace {
-							remove_size: size + remove_size,
-							data: data,
-						},
-						None,
-					);
-				}
+				(DiffBlock::Remove { size }, DiffBlock::Replace { remove_size, data }) => (
+					DiffBlock::Replace {
+						remove_size: size + remove_size,
+						data,
+					},
+					None,
+				),
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// remove(x) + replace(y, z) = replace(x + y, z)
 			35 => match (self, other) {
 				(DiffBlock::Remove { size }, DiffBlock::ReplaceWithSameLength { mut data }) => {
 					let sizeb = data.size() as u32;
-					return (
+					(
 						DiffBlock::Replace {
 							remove_size: size + sizeb,
-							data: data,
+							data,
 						},
 						None,
-					);
+					)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 
 			// replace
 			// replace(x, y) + skip(z)       = replace(x, y) skip(z)
-			41 => return (self, Some(other)),
+			41 => (self, Some(other)),
 			// replace(x, y) + add(z)        = replace(x, y + z)
 			42 => match (self, other) {
 				(
@@ -494,31 +448,31 @@ impl<'a> Add for DiffBlock<'a, u32> {
 					if remove_size == size + sizeb {
 						return (
 							DiffBlock::ReplaceWithSameLength {
-								data: ReadSlice::chain(&mut data, datab),
+								data: ReadSlice::chain(&data, datab),
 							},
 							None,
 						);
 					}
-					return (
+					(
 						DiffBlock::Replace {
-							remove_size: remove_size,
-							data: ReadSlice::chain(&mut data, datab),
+							remove_size,
+							data: ReadSlice::chain(&data, datab),
 						},
 						None,
-					);
+					)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// replace(x, y) + remove(z)     = replace(x, y) remove(z)
-			43 => return (self, Some(other)),
+			43 => (self, Some(other)),
 			// replace(x, y) + replace(z, w) = replace(x, y) replace(z, w)
-			44 => return (self, Some(other)),
+			44 => (self, Some(other)),
 			// replace(x, y) + replace(z, w) = replace(x, y) replace(z, w)
-			45 => return (self, Some(other)),
+			45 => (self, Some(other)),
 
 			// replace with same length
 			// replace(x, y) + skip(z)       = replace(x, y) skip(z)
-			51 => return (self, Some(other)),
+			51 => (self, Some(other)),
 			// replace(x, y) + add(z)        = replace(x, y + z)
 			52 => match (self, other) {
 				(
@@ -526,22 +480,22 @@ impl<'a> Add for DiffBlock<'a, u32> {
 					DiffBlock::Add { data: mut datab },
 				) => {
 					let size = data.size() as u32;
-					return (
+					(
 						DiffBlock::Replace {
 							remove_size: size,
-							data: ReadSlice::chain(&mut data, datab),
+							data: ReadSlice::chain(&data, datab),
 						},
 						None,
-					);
+					)
 				}
 				_ => panic!("DiffBlock unwrap failed"),
 			},
 			// replace(x, y) + remove(z)     = replace(x, y) remove(z)
-			53 => return (self, Some(other)),
+			53 => (self, Some(other)),
 			// replace(x, y) + replace(z, w) = replace(x, y) replace(z, w)
-			54 => return (self, Some(other)),
+			54 => (self, Some(other)),
 			// replace(x, y) + replace(z, w) = replace(x, y) replace(z, w)
-			55 => return (self, Some(other)),
+			55 => (self, Some(other)),
 			_ => panic!("Unknown action"),
 		}
 	}
@@ -551,47 +505,46 @@ impl<'a> IntoBytesSerializer for DiffBlock<'a, u32> {
 	type Item = DiffBlock<'a, u32>;
 
 	fn into_bytes(self) -> BytesSerializer<Self::Item> {
-		return BytesSerializer::new(
+		BytesSerializer::new(
 			self,
 			Box::new(
 				|position: &mut usize, val, mut buffer: &mut [u8]| match val {
 					DiffBlock::Skip { size } => {
 						if *position < 6 {
 							let mut bytes = &mut [0u8; 2 + 4][..];
-							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(&0u16)[..]);
-							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(&size)[..]);
+							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(0u16)[..]);
+							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(*size)[..]);
 							let res = Cursor::new(&bytes[*position..]).read(&mut buffer)?;
 							*position += res;
-							return Ok(res);
+							Ok(res)
 						} else {
-							return Ok(0);
+							Ok(0)
 						}
 					}
 					DiffBlock::Add { ref mut data } => {
 						if *position < 6 {
 							let mut bytes = &mut [0u8; 2 + 4][..];
-							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(&1u16)[..]);
-							bytes[2..6]
-								.clone_from_slice(&u32_to_u8_be_vec(&(data.size() as u32))[..]);
+							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(1u16)[..]);
+							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(data.size() as u32)[..]);
 							let res = Cursor::new(&bytes[*position..])
 								.chain(data)
 								.read(&mut buffer)?;
 							*position += res;
-							return Ok(res);
+							Ok(res)
 						} else {
-							return data.read(&mut buffer);
+							data.read(&mut buffer)
 						}
 					}
 					DiffBlock::Remove { size } => {
 						if *position < 6 {
 							let mut bytes = &mut [0u8; 2 + 4][..];
-							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(&2u16)[..]);
-							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(&size)[..]);
+							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(2u16)[..]);
+							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(*size)[..]);
 							let res = Cursor::new(&bytes[*position..]).read(&mut buffer)?;
 							*position += res;
-							return Ok(res);
+							Ok(res)
 						} else {
-							return Ok(0);
+							Ok(0)
 						}
 					}
 					DiffBlock::Replace {
@@ -600,37 +553,36 @@ impl<'a> IntoBytesSerializer for DiffBlock<'a, u32> {
 					} => {
 						if *position < 10 {
 							let mut bytes = &mut [0u8; 2 + 4 + 4][..];
-							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(&3u16)[..]);
-							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(&remove_size)[..]);
+							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(3u16)[..]);
+							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(*remove_size)[..]);
 							bytes[6..10]
-								.clone_from_slice(&u32_to_u8_be_vec(&(data.size() as u32))[..]);
+								.clone_from_slice(&u32_to_u8_be_vec(data.size() as u32)[..]);
 							let res = Cursor::new(&bytes[*position..])
 								.chain(data)
 								.read(&mut buffer)?;
 							*position += res;
-							return Ok(res);
+							Ok(res)
 						} else {
-							return data.read(&mut buffer);
+							data.read(&mut buffer)
 						}
 					}
 					DiffBlock::ReplaceWithSameLength { ref mut data } => {
 						if *position < 6 {
 							let mut bytes = &mut [0u8; 2 + 4][..];
-							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(&4u16)[..]);
-							bytes[2..6]
-								.clone_from_slice(&u32_to_u8_be_vec(&(data.size() as u32))[..]);
+							bytes[0..2].clone_from_slice(&u16_to_u8_be_vec(4u16)[..]);
+							bytes[2..6].clone_from_slice(&u32_to_u8_be_vec(data.size() as u32)[..]);
 							let res = Cursor::new(&bytes[*position..])
 								.chain(data)
 								.read(&mut buffer)?;
 							*position += res;
-							return Ok(res);
+							Ok(res)
 						} else {
-							return data.read(&mut buffer);
+							data.read(&mut buffer)
 						}
 					}
 				},
 			),
-		);
+		)
 	}
 }
 

@@ -16,16 +16,18 @@ pub fn create_diff<T: WithIndexes, U: WithIndexes, W: Write>(
 	edited: &mut U,
 	output: &mut W,
 ) -> IOResult<()> {
-	let mut dit = DiffIterator::new(original, edited).or(Err(Error::new(
-		ErrorKind::Other,
-		"Error while creating DiffIterator",
-	)))?;
+	let mut dit = DiffIterator::new(original, edited).or_else(|_| {
+		Err(Error::new(
+			ErrorKind::Other,
+			"Error while creating DiffIterator",
+		))
+	})?;
 
 	let mut stdo = BufWriter::with_capacity(1024 * 64, output);
 
 	while let Some(block) = dit.next_ref() {
 		let mut block = block
-			.or(Err(Error::new(ErrorKind::Other, "Cannot get diff block")))
+			.or_else(|_| Err(Error::new(ErrorKind::Other, "Cannot get diff block")))
 			.map(|x| x.into_bytes())?;
 		copy(&mut block, &mut stdo)?;
 	}
@@ -39,10 +41,12 @@ pub fn measure_diff_size<T: WithIndexes, U: WithIndexes>(
 	edited: &mut U,
 ) -> IOResult<u64> {
 	let mut size = 0u64;
-	let mut dit = DiffIterator::new(original, edited).or(Err(Error::new(
-		ErrorKind::Other,
-		"Error while creating DiffIterator",
-	)))?;
+	let mut dit = DiffIterator::new(original, edited).or_else(|_| {
+		Err(Error::new(
+			ErrorKind::Other,
+			"Error while creating DiffIterator",
+		))
+	})?;
 
 	while let Some(block_size) = dit.next_size() {
 		size += block_size;
@@ -78,38 +82,38 @@ pub fn apply_diffblock<T: Read, U: Read, W: Write>(
 
 	read_n(block, &mut buf, 2)?;
 	let action: &[u8] = &buf[0..2].to_vec();
-	match action.as_ref() {
+	match action {
 		[0x00, 0x00] => {
 			read_n(block, &mut buf, 4)?;
 			let len = vec_to_u32_be(&buf[0..4]);
-			let mut r = (&mut file).take(len as u64);
+			let mut r = (&mut file).take(u64::from(len));
 			copy(&mut r, &mut output)?;
 		}
 		[0x00, 0x01] => {
 			read_n(block, &mut buf, 4)?;
 			let len = vec_to_u32_be(&buf[0..4]);
-			let mut r = block.take(len as u64);
+			let mut r = block.take(u64::from(len));
 			copy(&mut r, &mut output)?;
 		}
 		[0x00, 0x02] => {
 			read_n(block, &mut buf, 4)?;
 			let len = vec_to_u32_be(&buf[0..4]);
-			file.drain(len as u64).get_drained()?;
+			file.drain(u64::from(len)).get_drained()?;
 		}
 		[0x00, 0x03] => {
 			read_n(block, &mut buf, 4)?;
 			let remove = vec_to_u32_be(&buf[0..4]);
 			read_n(block, &mut buf, 4)?;
 			let add = vec_to_u32_be(&buf[0..4]);
-			file.drain(remove as u64).get_drained()?;
-			let mut r = block.take(add as u64);
+			file.drain(u64::from(remove)).get_drained()?;
+			let mut r = block.take(u64::from(add));
 			copy(&mut r, &mut output)?;
 		}
 		[0x00, 0x04] => {
 			read_n(block, &mut buf, 4)?;
 			let size = vec_to_u32_be(&buf[0..4]);
-			file.drain(size as u64).get_drained()?;
-			let mut r = block.take(size as u64);
+			file.drain(u64::from(size)).get_drained()?;
+			let mut r = block.take(u64::from(size));
 			copy(&mut r, &mut output)?;
 		}
 		_ => {
@@ -141,7 +145,7 @@ pub fn apply_diff<T: Read, U: Read, W: Write>(
 		}
 	}
 
-	return output.flush();
+	output.flush()
 }
 
 #[cfg(test)]
@@ -314,7 +318,7 @@ fn combine_diffs_to_vec<'a, 'b: 'a>(
 		};
 	}
 
-	if out.len() < 1 {
+	if out.is_empty() {
 		return Ok(vec![]);
 	}
 
@@ -342,21 +346,19 @@ fn combine_diffs_to_vec<'a, 'b: 'a>(
 					// satisfying compilator
 					blocka = DiffBlock::Skip { size: 0 };
 				}
+			} else if i != len - 1 {
+				blocka = processed.pop().unwrap();
+				compressed = false;
 			} else {
-				if i != len - 1 {
-					blocka = processed.pop().unwrap();
-					compressed = false;
-				} else {
-					// satisfying compilator
-					blocka = DiffBlock::Skip { size: 0 };
-				}
+				// satisfying compilator
+				blocka = DiffBlock::Skip { size: 0 };
 			}
 		}
 		out = processed;
 		processed = vec![];
 	}
 
-	return Ok(out);
+	Ok(out)
 }
 
 /// Combines two binary diffs into one
@@ -491,7 +493,7 @@ pub fn combine_diffs_vec<'a, T: 'a + Read + Seek, W: Write>(
 ) -> IOResult<()> {
 	let mut blocks = combine_diffs_vec_to_diffblocks(&mut diffs)?;
 
-	for block in blocks.iter_mut() {
+	for block in &mut blocks {
 		copy(block, &mut output)?;
 	}
 
@@ -522,8 +524,7 @@ mod combine_diffs_vec_tests {
 				create_diff(&mut filea, &mut fileb, &mut out).unwrap();
 				out.seek(SeekFrom::Start(0)).unwrap();
 				out
-			})
-			.collect();
+			}).collect();
 
 		let mut original = TextFile::from_path("./test_data/a_a.txt");
 		let mut acc_diff = {

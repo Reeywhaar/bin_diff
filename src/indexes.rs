@@ -29,7 +29,7 @@ use std::path::PathBuf;
 /// Diff algorithm uses this blocks to compute hashes and compare them one by one
 ///
 /// Indexes implementation varies from format to format and is supposed to be implemented manually for each format
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Default)]
 pub struct Indexes {
 	order: Vec<(String, u64, u64)>,
 	pos: usize,
@@ -38,43 +38,37 @@ pub struct Indexes {
 impl Indexes {
 	/// Creates new `Indexes` instance
 	pub fn new() -> Self {
-		return Self {
+		Self {
 			order: vec![],
 			pos: 0,
-		};
+		}
 	}
 
 	/// Inserts item to `Indexes`
 	pub fn insert(&mut self, label: String, start: u64, size: u64) {
 		if self.has(&label) {
-			panic!("Attempt to put a dublicate");
+			panic!("Attempt to put a duplicate");
 		}
-		self.order.push((label.clone(), start, size));
+		self.order.push((label, start, size));
 	}
 
 	/// Chech if `Indexes` has label
 	pub fn has(&self, label: &str) -> bool {
-		return self
-			.order
-			.iter()
-			.by_ref()
-			.position(|(p, _, _)| p == &label)
-			.is_some();
+		self.order.iter().by_ref().any(|(p, _, _)| p == label)
 	}
 
 	/// Returns `Indexes` item
 	pub fn get(&self, label: &str) -> Option<(u64, u64)> {
-		return self
-			.order
+		self.order
 			.iter()
 			.by_ref()
-			.find(|(p, _, _)| p == &label)
-			.map(|(_, start, size)| (*start, *size));
+			.find(|(p, _, _)| p == label)
+			.map(|(_, start, size)| (*start, *size))
 	}
 
 	/// Removes item from `Indexes` by label
 	pub fn remove(&mut self, label: &str) -> bool {
-		let index = self.order.iter().by_ref().position(|(l, _, _)| l == &label);
+		let index = self.order.iter().by_ref().position(|(l, _, _)| l == label);
 		if index.is_none() {
 			return false;
 		};
@@ -83,7 +77,8 @@ impl Indexes {
 		if index <= self.pos {
 			self.pos -= 1;
 		};
-		return true;
+
+		true
 	}
 
 	/// Returns only ends of the `Indexes`
@@ -141,7 +136,8 @@ impl Indexes {
 			let item = self.get(&label).unwrap();
 			out.insert(label, item.0, item.1);
 		}
-		return out;
+
+		out
 	}
 }
 
@@ -155,13 +151,13 @@ impl Iterator for Indexes {
 
 		let item = &self.order[self.pos];
 		self.pos += 1;
-		return Some(item.clone());
+		Some(item.clone())
 	}
 }
 
 impl ExactSizeIterator for Indexes {
 	fn len(&self) -> usize {
-		return self.order.len();
+		self.order.len()
 	}
 }
 
@@ -173,7 +169,7 @@ impl DoubleEndedIterator for Indexes {
 
 		let item = &self.order[self.pos];
 		self.pos -= 1;
-		return Some(item.clone());
+		Some(item.clone())
 	}
 }
 
@@ -184,7 +180,7 @@ pub trait WithIndexes: Read + Seek {
 
 impl<'a, T: WithIndexes> WithIndexes for &'a mut T {
 	fn get_indexes(&mut self) -> Result<Indexes, String> {
-		return (**self).get_indexes();
+		(**self).get_indexes()
 	}
 }
 
